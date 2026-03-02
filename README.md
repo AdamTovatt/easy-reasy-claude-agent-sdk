@@ -1,5 +1,6 @@
 # Claude Agent SDK for .NET
 
+[![Tests](https://github.com/AdamTovatt/easy-reasy-claude-agent-sdk/actions/workflows/build.yml/badge.svg)](https://github.com/AdamTovatt/easy-reasy-claude-agent-sdk/actions/workflows/build.yml)
 [![NuGet](https://img.shields.io/badge/nuget-EasyReasy.Claude.AgentSdk-blue.svg)](https://www.nuget.org/packages/EasyReasy.Claude.AgentSdk)
 
 A modern .NET library for interacting with the Claude Code CLI, providing both a simple one-shot `QueryAsync()` API and a full bidirectional client with control-protocol support.
