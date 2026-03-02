@@ -1,4 +1,3 @@
-using EasyReasy.Claude.AgentSdk.Builders;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -8,7 +7,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void Enable_SetsEnabled()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.Enable())
             .Build();
 
@@ -19,7 +18,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void Disable_SetsDisabled()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.Disable())
             .Build();
 
@@ -29,7 +28,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void AutoAllowBash_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.AutoAllowBash())
             .Build();
 
@@ -39,7 +38,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void ExcludeCommands_AddsCommands()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.ExcludeCommands("rm", "sudo"))
             .Build();
 
@@ -49,7 +48,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void AllowUnsandboxedCommands_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.AllowUnsandboxedCommands())
             .Build();
 
@@ -59,7 +58,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void Network_ConfiguresNetwork()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.Network(n => n
                 .AllowLocalBinding()
                 .HttpProxyPort(8080)))
@@ -73,7 +72,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void Network_AllowUnixSockets_AddsSockets()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.Network(n => n.AllowUnixSockets("/var/run/docker.sock")))
             .Build();
 
@@ -83,7 +82,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void Network_AllowAllUnixSockets_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.Network(n => n.AllowAllUnixSockets()))
             .Build();
 
@@ -93,7 +92,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void IgnoreViolations_ConfiguresViolations()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.IgnoreViolations(v => v
                 .File("/tmp/*")
                 .Network("localhost")))
@@ -107,7 +106,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void EnableWeakerNestedSandbox_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s.EnableWeakerNestedSandbox())
             .Build();
 
@@ -117,7 +116,7 @@ public sealed class SandboxBuilderTests
     [Fact]
     public void CompleteExample_BuildsCorrectSandbox()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Sandbox(s => s
                 .Enable()
                 .AutoAllowBash()

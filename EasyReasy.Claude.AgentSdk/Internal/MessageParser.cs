@@ -23,13 +23,13 @@ internal static class MessageParser
             );
         }
 
-        if (!data.TryGetProperty("type", out var typeElement) ||
+        if (!data.TryGetProperty("type", out JsonElement typeElement) ||
             typeElement.ValueKind != JsonValueKind.String)
         {
             throw new MessageParseException("Message missing 'type' field", data);
         }
 
-        var messageType = typeElement.GetString();
+        string? messageType = typeElement.GetString();
 
         return messageType switch
         {
@@ -46,14 +46,14 @@ internal static class MessageParser
     {
         try
         {
-            var message = data.GetProperty("message");
-            var content = message.GetProperty("content");
+            JsonElement message = data.GetProperty("message");
+            JsonElement content = message.GetProperty("content");
 
             return new UserMessage
             {
                 Content = content.Clone(),
-                Uuid = data.TryGetProperty("uuid", out var uuid) ? uuid.GetString() : null,
-                ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out var pid)
+                Uuid = data.TryGetProperty("uuid", out JsonElement uuid) ? uuid.GetString() : null,
+                ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out JsonElement pid)
                     ? pid.GetString()
                     : null
             };
@@ -68,17 +68,17 @@ internal static class MessageParser
     {
         try
         {
-            var message = data.GetProperty("message");
-            var contentArray = message.GetProperty("content");
-            var model = message.GetProperty("model").GetString()
+            JsonElement message = data.GetProperty("message");
+            JsonElement contentArray = message.GetProperty("content");
+            string model = message.GetProperty("model").GetString()
                 ?? throw new MessageParseException("Missing model in assistant message", data);
 
-            var contentBlocks = new List<ContentBlock>();
+            List<ContentBlock> contentBlocks = new List<ContentBlock>();
 
-            foreach (var block in contentArray.EnumerateArray())
+            foreach (JsonElement block in contentArray.EnumerateArray())
             {
-                var blockType = block.GetProperty("type").GetString();
-                var contentBlock = blockType switch
+                string? blockType = block.GetProperty("type").GetString();
+                ContentBlock contentBlock = blockType switch
                 {
                     "text" => (ContentBlock)new TextBlock(block.GetProperty("text").GetString()!),
                     "thinking" => new ThinkingBlock(
@@ -92,8 +92,8 @@ internal static class MessageParser
                     ),
                     "tool_result" => new ToolResultBlock(
                         block.GetProperty("tool_use_id").GetString()!,
-                        block.TryGetProperty("content", out var c) ? c.Clone() : null,
-                        block.TryGetProperty("is_error", out var e) ? e.GetBoolean() : null
+                        block.TryGetProperty("content", out JsonElement c) ? c.Clone() : null,
+                        block.TryGetProperty("is_error", out JsonElement e) ? e.GetBoolean() : null
                     ),
                     _ => throw new MessageParseException($"Unknown content block type: {blockType}", data)
                 };
@@ -101,10 +101,10 @@ internal static class MessageParser
             }
 
             AssistantMessageError? error = null;
-            if (message.TryGetProperty("error", out var errorElement) &&
+            if (message.TryGetProperty("error", out JsonElement errorElement) &&
                 errorElement.ValueKind == JsonValueKind.String)
             {
-                var errorStr = errorElement.GetString();
+                string? errorStr = errorElement.GetString();
                 error = errorStr switch
                 {
                     "authentication_failed" => AssistantMessageError.AuthenticationFailed,
@@ -120,7 +120,7 @@ internal static class MessageParser
             {
                 Content = contentBlocks,
                 Model = model,
-                ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out var pid)
+                ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out JsonElement pid)
                     ? pid.GetString()
                     : null,
                 Error = error
@@ -160,12 +160,12 @@ internal static class MessageParser
                 IsError = data.GetProperty("is_error").GetBoolean(),
                 NumTurns = data.GetProperty("num_turns").GetInt32(),
                 SessionId = data.GetProperty("session_id").GetString()!,
-                TotalCostUsd = data.TryGetProperty("total_cost_usd", out var cost) && cost.ValueKind == JsonValueKind.Number
+                TotalCostUsd = data.TryGetProperty("total_cost_usd", out JsonElement cost) && cost.ValueKind == JsonValueKind.Number
                     ? cost.GetDecimal()
                     : null,
-                Usage = data.TryGetProperty("usage", out var usage) ? usage.Clone() : null,
-                Result = data.TryGetProperty("result", out var result) ? result.GetString() : null,
-                StructuredOutput = data.TryGetProperty("structured_output", out var so) ? so.Clone() : null
+                Usage = data.TryGetProperty("usage", out JsonElement usage) ? usage.Clone() : null,
+                Result = data.TryGetProperty("result", out JsonElement result) ? result.GetString() : null,
+                StructuredOutput = data.TryGetProperty("structured_output", out JsonElement so) ? so.Clone() : null
             };
         }
         catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException)
@@ -183,7 +183,7 @@ internal static class MessageParser
                 Uuid = data.GetProperty("uuid").GetString()!,
                 SessionId = data.GetProperty("session_id").GetString()!,
                 Event = data.GetProperty("event").Clone(),
-                ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out var pid)
+                ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out JsonElement pid)
                     ? pid.GetString()
                     : null
             };

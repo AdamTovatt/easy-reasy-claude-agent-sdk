@@ -1,5 +1,5 @@
-using System.Text.Json;
 using EasyReasy.Claude.AgentSdk.Mcp;
+using System.Text.Json;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -11,7 +11,7 @@ public class McpBridgeTests
     [Fact]
     public void McpToolDefinition_CreatesWithRequiredProperties()
     {
-        var tool = new McpToolDefinition
+        McpToolDefinition tool = new McpToolDefinition
         {
             Name = "test_tool",
             Description = "A test tool"
@@ -25,9 +25,9 @@ public class McpBridgeTests
     [Fact]
     public void McpToolDefinition_SupportsInputSchema()
     {
-        var schema = JsonSerializer.SerializeToElement(new { type = "object" });
+        JsonElement schema = JsonSerializer.SerializeToElement(new { type = "object" });
 
-        var tool = new McpToolDefinition
+        McpToolDefinition tool = new McpToolDefinition
         {
             Name = "typed_tool",
             Description = "A typed tool",
@@ -45,7 +45,7 @@ public class McpBridgeTests
     [Fact]
     public void McpToolResult_CreatesSuccessResult()
     {
-        var result = new McpToolResult
+        McpToolResult result = new McpToolResult
         {
             Content = [new McpContent { Type = "text", Text = "Success!" }],
             IsError = false
@@ -60,7 +60,7 @@ public class McpBridgeTests
     [Fact]
     public void McpToolResult_CreatesErrorResult()
     {
-        var result = new McpToolResult
+        McpToolResult result = new McpToolResult
         {
             Content = [new McpContent { Type = "text", Text = "Error occurred" }],
             IsError = true
@@ -76,7 +76,7 @@ public class McpBridgeTests
     [Fact]
     public void McpPromptDefinition_CreatesWithArguments()
     {
-        var prompt = new McpPromptDefinition
+        McpPromptDefinition prompt = new McpPromptDefinition
         {
             Name = "code_review",
             Description = "Review code",
@@ -103,7 +103,7 @@ public class McpBridgeTests
     [Fact]
     public void McpResourceDefinition_CreatesWithAllProperties()
     {
-        var resource = new McpResourceDefinition
+        McpResourceDefinition resource = new McpResourceDefinition
         {
             Uri = "file:///test.txt",
             Name = "Test File",
@@ -123,14 +123,14 @@ public class McpBridgeTests
     [Fact]
     public async Task McpServerHandlers_InvokesListToolsHandler()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition { Name = "add", Description = "Add numbers" }
             ])
         };
 
-        var tools = await handlers.ListTools!(CancellationToken.None);
+        IReadOnlyList<McpToolDefinition> tools = await handlers.ListTools!(CancellationToken.None);
 
         Assert.Single(tools);
         Assert.Equal("add", tools[0].Name);
@@ -139,12 +139,12 @@ public class McpBridgeTests
     [Fact]
     public async Task McpServerHandlers_InvokesCallToolHandler()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             CallTool = (name, args, ct) =>
             {
-                var a = args.GetProperty("a").GetInt32();
-                var b = args.GetProperty("b").GetInt32();
+                int a = args.GetProperty("a").GetInt32();
+                int b = args.GetProperty("b").GetInt32();
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = (a + b).ToString() }]
@@ -152,8 +152,8 @@ public class McpBridgeTests
             }
         };
 
-        var args = JsonSerializer.SerializeToElement(new { a = 5, b = 3 });
-        var result = await handlers.CallTool!("add", args, CancellationToken.None);
+        JsonElement args = JsonSerializer.SerializeToElement(new { a = 5, b = 3 });
+        McpToolResult result = await handlers.CallTool!("add", args, CancellationToken.None);
 
         Assert.Equal("8", result.Content[0].Text);
     }
@@ -161,14 +161,14 @@ public class McpBridgeTests
     [Fact]
     public async Task McpServerHandlers_InvokesListPromptsHandler()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListPrompts = ct => Task.FromResult<IReadOnlyList<McpPromptDefinition>>([
                 new McpPromptDefinition { Name = "summarize", Description = "Summarize text" }
             ])
         };
 
-        var prompts = await handlers.ListPrompts!(CancellationToken.None);
+        IReadOnlyList<McpPromptDefinition> prompts = await handlers.ListPrompts!(CancellationToken.None);
 
         Assert.Single(prompts);
         Assert.Equal("summarize", prompts[0].Name);
@@ -177,7 +177,7 @@ public class McpBridgeTests
     [Fact]
     public async Task McpServerHandlers_InvokesGetPromptHandler()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             GetPrompt = (name, args, ct) => Task.FromResult(new McpPromptResult
             {
@@ -193,7 +193,7 @@ public class McpBridgeTests
             })
         };
 
-        var result = await handlers.GetPrompt!("test", null, CancellationToken.None);
+        McpPromptResult result = await handlers.GetPrompt!("test", null, CancellationToken.None);
 
         Assert.Equal("Prompt: test", result.Description);
         Assert.Single(result.Messages);
@@ -202,14 +202,14 @@ public class McpBridgeTests
     [Fact]
     public async Task McpServerHandlers_InvokesListResourcesHandler()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListResources = ct => Task.FromResult<IReadOnlyList<McpResourceDefinition>>([
                 new McpResourceDefinition { Uri = "file:///a.txt", Name = "File A" }
             ])
         };
 
-        var resources = await handlers.ListResources!(CancellationToken.None);
+        IReadOnlyList<McpResourceDefinition> resources = await handlers.ListResources!(CancellationToken.None);
 
         Assert.Single(resources);
         Assert.Equal("file:///a.txt", resources[0].Uri);
@@ -218,7 +218,7 @@ public class McpBridgeTests
     [Fact]
     public async Task McpServerHandlers_InvokesReadResourceHandler()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ReadResource = (uri, ct) => Task.FromResult(new McpResourceResult
             {
@@ -234,7 +234,7 @@ public class McpBridgeTests
             })
         };
 
-        var result = await handlers.ReadResource!("file:///a.txt", CancellationToken.None);
+        McpResourceResult result = await handlers.ReadResource!("file:///a.txt", CancellationToken.None);
 
         Assert.Single(result.Contents);
         Assert.Equal("File content", result.Contents[0].Text);
@@ -247,15 +247,15 @@ public class McpBridgeTests
     [Fact]
     public async Task SdkMcpBridge_HandlesInitializeMessage()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([])
         };
 
-        await using var bridge = new SdkMcpBridge(handlers, "test-server");
+        await using SdkMcpBridge bridge = new SdkMcpBridge(handlers, "test-server");
         await bridge.StartAsync();
 
-        var request = JsonSerializer.SerializeToElement(new
+        JsonElement request = JsonSerializer.SerializeToElement(new
         {
             jsonrpc = "2.0",
             id = 1,
@@ -263,12 +263,12 @@ public class McpBridgeTests
             @params = new { }
         });
 
-        var response = await bridge.SendMessageAsync(request);
+        JsonElement response = await bridge.SendMessageAsync(request);
 
         Assert.Equal("2.0", response.GetProperty("jsonrpc").GetString());
         Assert.Equal(1, response.GetProperty("id").GetInt32());
 
-        var result = response.GetProperty("result");
+        JsonElement result = response.GetProperty("result");
         Assert.Equal("2024-11-05", result.GetProperty("protocolVersion").GetString());
         Assert.Equal("test-server", result.GetProperty("serverInfo").GetProperty("name").GetString());
     }
@@ -276,7 +276,7 @@ public class McpBridgeTests
     [Fact]
     public async Task SdkMcpBridge_HandlesToolsListMessage()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition { Name = "add", Description = "Add numbers" },
@@ -284,18 +284,18 @@ public class McpBridgeTests
             ])
         };
 
-        await using var bridge = new SdkMcpBridge(handlers, "calculator");
+        await using SdkMcpBridge bridge = new SdkMcpBridge(handlers, "calculator");
         await bridge.StartAsync();
 
-        var request = JsonSerializer.SerializeToElement(new
+        JsonElement request = JsonSerializer.SerializeToElement(new
         {
             jsonrpc = "2.0",
             id = 2,
             method = "tools/list"
         });
 
-        var response = await bridge.SendMessageAsync(request);
-        var tools = response.GetProperty("result").GetProperty("tools");
+        JsonElement response = await bridge.SendMessageAsync(request);
+        JsonElement tools = response.GetProperty("result").GetProperty("tools");
 
         Assert.Equal(2, tools.GetArrayLength());
     }
@@ -303,13 +303,13 @@ public class McpBridgeTests
     [Fact]
     public async Task SdkMcpBridge_HandlesToolsCallMessage()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             CallTool = (name, args, ct) =>
             {
-                var a = args.GetProperty("a").GetInt32();
-                var b = args.GetProperty("b").GetInt32();
-                var result = name == "add" ? a + b : a - b;
+                int a = args.GetProperty("a").GetInt32();
+                int b = args.GetProperty("b").GetInt32();
+                int result = name == "add" ? a + b : a - b;
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = result.ToString() }]
@@ -317,10 +317,10 @@ public class McpBridgeTests
             }
         };
 
-        await using var bridge = new SdkMcpBridge(handlers, "calculator");
+        await using SdkMcpBridge bridge = new SdkMcpBridge(handlers, "calculator");
         await bridge.StartAsync();
 
-        var request = JsonSerializer.SerializeToElement(new
+        JsonElement request = JsonSerializer.SerializeToElement(new
         {
             jsonrpc = "2.0",
             id = 3,
@@ -328,8 +328,8 @@ public class McpBridgeTests
             @params = new { name = "add", arguments = new { a = 10, b = 5 } }
         });
 
-        var response = await bridge.SendMessageAsync(request);
-        var result = response.GetProperty("result");
+        JsonElement response = await bridge.SendMessageAsync(request);
+        JsonElement result = response.GetProperty("result");
 
         Assert.Equal("15", result.GetProperty("content")[0].GetProperty("text").GetString());
     }
@@ -337,41 +337,41 @@ public class McpBridgeTests
     [Fact]
     public async Task SdkMcpBridge_HandlesUnsupportedMethod()
     {
-        var handlers = new McpServerHandlers();
+        McpServerHandlers handlers = new McpServerHandlers();
 
-        await using var bridge = new SdkMcpBridge(handlers, "test");
+        await using SdkMcpBridge bridge = new SdkMcpBridge(handlers, "test");
         await bridge.StartAsync();
 
-        var request = JsonSerializer.SerializeToElement(new
+        JsonElement request = JsonSerializer.SerializeToElement(new
         {
             jsonrpc = "2.0",
             id = 4,
             method = "unsupported/method"
         });
 
-        var response = await bridge.SendMessageAsync(request);
+        JsonElement response = await bridge.SendMessageAsync(request);
 
-        Assert.True(response.TryGetProperty("error", out var error));
+        Assert.True(response.TryGetProperty("error", out JsonElement error));
         Assert.Equal(-32603, error.GetProperty("code").GetInt32());
     }
 
     [Fact]
     public async Task SdkMcpBridge_ReturnsEmptyToolsWhenNoHandler()
     {
-        var handlers = new McpServerHandlers(); // No ListTools handler
+        McpServerHandlers handlers = new McpServerHandlers(); // No ListTools handler
 
-        await using var bridge = new SdkMcpBridge(handlers, "empty");
+        await using SdkMcpBridge bridge = new SdkMcpBridge(handlers, "empty");
         await bridge.StartAsync();
 
-        var request = JsonSerializer.SerializeToElement(new
+        JsonElement request = JsonSerializer.SerializeToElement(new
         {
             jsonrpc = "2.0",
             id = 5,
             method = "tools/list"
         });
 
-        var response = await bridge.SendMessageAsync(request);
-        var tools = response.GetProperty("result").GetProperty("tools");
+        JsonElement response = await bridge.SendMessageAsync(request);
+        JsonElement tools = response.GetProperty("result").GetProperty("tools");
 
         Assert.Equal(0, tools.GetArrayLength());
     }
@@ -385,7 +385,7 @@ public class McpBridgeTests
     [Fact]
     public void SdkMcpBridge_ThrowsOnNullServerName()
     {
-        var handlers = new McpServerHandlers();
+        McpServerHandlers handlers = new McpServerHandlers();
         Assert.Throws<ArgumentNullException>(() => new SdkMcpBridge(handlers, null!));
     }
 
@@ -396,8 +396,8 @@ public class McpBridgeTests
     [Fact]
     public void McpSdkServerConfig_HasCorrectType()
     {
-        var handlers = new McpServerHandlers();
-        var config = new McpSdkServerConfig
+        McpServerHandlers handlers = new McpServerHandlers();
+        McpSdkServerConfig config = new McpSdkServerConfig
         {
             Name = "test",
             Handlers = handlers

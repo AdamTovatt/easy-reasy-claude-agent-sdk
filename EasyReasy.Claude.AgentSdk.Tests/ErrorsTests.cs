@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -7,15 +8,15 @@ public class ErrorsTests
     [Fact]
     public void ClaudeSDKException_HasCorrectMessage()
     {
-        var ex = new ClaudeSDKException("Test error");
+        ClaudeSDKException ex = new ClaudeSDKException("Test error");
         Assert.Equal("Test error", ex.Message);
     }
 
     [Fact]
     public void ClaudeSDKException_PreservesInnerException()
     {
-        var inner = new InvalidOperationException("Inner error");
-        var ex = new ClaudeSDKException("Outer error", inner);
+        InvalidOperationException inner = new InvalidOperationException("Inner error");
+        ClaudeSDKException ex = new ClaudeSDKException("Outer error", inner);
 
         Assert.Equal("Outer error", ex.Message);
         Assert.Same(inner, ex.InnerException);
@@ -24,7 +25,7 @@ public class ErrorsTests
     [Fact]
     public void CliNotFoundException_IncludesPath()
     {
-        var ex = new CliNotFoundException("CLI not found", "/usr/bin/claude");
+        CliNotFoundException ex = new CliNotFoundException("CLI not found", "/usr/bin/claude");
 
         Assert.Contains("/usr/bin/claude", ex.Message);
         Assert.Equal("/usr/bin/claude", ex.CliPath);
@@ -33,7 +34,7 @@ public class ErrorsTests
     [Fact]
     public void CliNotFoundException_WorksWithoutPath()
     {
-        var ex = new CliNotFoundException("CLI not found");
+        CliNotFoundException ex = new CliNotFoundException("CLI not found");
 
         Assert.Equal("CLI not found", ex.Message);
         Assert.Null(ex.CliPath);
@@ -42,7 +43,7 @@ public class ErrorsTests
     [Fact]
     public void ProcessException_IncludesExitCode()
     {
-        var ex = new ProcessException("Process failed", exitCode: 1);
+        ProcessException ex = new ProcessException("Process failed", exitCode: 1);
 
         Assert.Contains("exit code: 1", ex.Message);
         Assert.Equal(1, ex.ExitCode);
@@ -51,7 +52,7 @@ public class ErrorsTests
     [Fact]
     public void ProcessException_IncludesStderr()
     {
-        var ex = new ProcessException("Process failed", stderr: "Error output");
+        ProcessException ex = new ProcessException("Process failed", stderr: "Error output");
 
         Assert.Contains("Error output", ex.Message);
         Assert.Equal("Error output", ex.Stderr);
@@ -60,7 +61,7 @@ public class ErrorsTests
     [Fact]
     public void ProcessException_IncludesBoth()
     {
-        var ex = new ProcessException("Process failed", exitCode: 2, stderr: "Error details");
+        ProcessException ex = new ProcessException("Process failed", exitCode: 2, stderr: "Error details");
 
         Assert.Contains("exit code: 2", ex.Message);
         Assert.Contains("Error details", ex.Message);
@@ -71,9 +72,9 @@ public class ErrorsTests
     [Fact]
     public void JsonDecodeException_TruncatesLongLines()
     {
-        var longLine = new string('x', 200);
-        var inner = new Exception("Parse error");
-        var ex = new JsonDecodeException(longLine, inner);
+        string longLine = new string('x', 200);
+        Exception inner = new Exception("Parse error");
+        JsonDecodeException ex = new JsonDecodeException(longLine, inner);
 
         Assert.True(ex.Message.Length < longLine.Length + 50);
         Assert.Contains("...", ex.Message);
@@ -84,8 +85,8 @@ public class ErrorsTests
     [Fact]
     public void MessageParseException_IncludesRawData()
     {
-        var data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>("{}");
-        var ex = new MessageParseException("Parse failed", data);
+        JsonElement data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>("{}");
+        MessageParseException ex = new MessageParseException("Parse failed", data);
 
         Assert.Equal("Parse failed", ex.Message);
         Assert.NotNull(ex.RawData);

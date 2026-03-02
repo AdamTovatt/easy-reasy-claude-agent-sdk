@@ -1,5 +1,4 @@
 using System.Text.Json;
-using EasyReasy.Claude.AgentSdk;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -11,11 +10,11 @@ namespace EasyReasy.Claude.AgentSdk.Tests;
 public class HooksIntegrationTests
 {
     [IntegrationFact]
-    public async Task PreToolUseHook_IsInvokedBeforeToolExecution()      
+    public async Task PreToolUseHook_IsInvokedBeforeToolExecution()
     {
-        var hookInvocations = new List<JsonElement>();
+        List<JsonElement> hookInvocations = new List<JsonElement>();
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {
@@ -34,12 +33,12 @@ public class HooksIntegrationTests
             MaxTurns = 3
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("What is 5 + 3? Show your work using a tool.");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -49,11 +48,11 @@ public class HooksIntegrationTests
     }
 
     [IntegrationFact]
-    public async Task PostToolUseHook_IsInvokedAfterToolExecution()       
+    public async Task PostToolUseHook_IsInvokedAfterToolExecution()
     {
-        var postToolInvocations = new List<JsonElement>();
+        List<JsonElement> postToolInvocations = new List<JsonElement>();
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {
@@ -71,12 +70,12 @@ public class HooksIntegrationTests
             MaxTurns = 3
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("List the files in the current directory.");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -87,9 +86,9 @@ public class HooksIntegrationTests
     [IntegrationFact]
     public async Task Hook_CanBlockToolExecution()
     {
-        var toolBlocked = false;
+        bool toolBlocked = false;
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {
@@ -98,7 +97,7 @@ public class HooksIntegrationTests
                         Matcher: "Bash",
                         Hooks: [(input, toolUseId, ctx, ct) =>
                         {
-                            var command = input.TryGetProperty("command", out var cmd)
+                            string command = input.TryGetProperty("command", out JsonElement cmd)
                                 ? cmd.GetString() ?? ""
                                 : "";
 
@@ -121,12 +120,12 @@ public class HooksIntegrationTests
             MaxTurns = 2
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Run the command: rm -rf /tmp/test");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -137,10 +136,10 @@ public class HooksIntegrationTests
     [IntegrationFact]
     public async Task Hook_MatcherFiltersCorrectTool()
     {
-        var bashHookCalled = false;
-        var readHookCalled = false;
+        bool bashHookCalled = false;
+        bool readHookCalled = false;
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {
@@ -166,12 +165,12 @@ public class HooksIntegrationTests
             MaxTurns = 3
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Read the contents of README.md");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -183,9 +182,9 @@ public class HooksIntegrationTests
     [IntegrationFact]
     public async Task MultipleHooks_AreChainedCorrectly()
     {
-        var hookOrder = new List<int>();
+        List<int> hookOrder = new List<int>();
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {
@@ -210,12 +209,12 @@ public class HooksIntegrationTests
             MaxTurns = 2
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("What time is it?");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }

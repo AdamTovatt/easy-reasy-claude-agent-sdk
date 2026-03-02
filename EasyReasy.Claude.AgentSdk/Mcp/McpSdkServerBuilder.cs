@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using EasyReasy.Claude.AgentSdk;
 
 namespace EasyReasy.Claude.AgentSdk.Mcp;
 
@@ -47,7 +46,7 @@ public sealed class McpSdkServerBuilder
 
     internal McpSdkServerConfig Build()
     {
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>(
                 _tools.Values
@@ -56,7 +55,7 @@ public sealed class McpSdkServerBuilder
             ),
             CallTool = async (toolName, args, ct) =>
             {
-                if (!_tools.TryGetValue(toolName, out var tool))
+                if (!_tools.TryGetValue(toolName, out ToolRegistration? tool))
                     return McpToolResults.Text($"Unknown tool: '{toolName}'", isError: true);
 
                 try
@@ -103,16 +102,16 @@ public sealed class McpSdkServerBuilder
 
         public static ToolRegistration Create(string name, string? description, Delegate handler)
         {
-            var plan = BindingPlan.Create(handler.Method);
-            var schema = plan.BuildInputSchema();
+            BindingPlan plan = BindingPlan.Create(handler.Method);
+            JsonElement schema = plan.BuildInputSchema();
             return new ToolRegistration(name, description, schema, handler, plan);
         }
 
         public async Task<McpToolResult> InvokeAsync(JsonElement args, CancellationToken ct)
         {
-            var invokeArgs = _bindingPlan.BindArguments(args, ct);
-            var result = _handler.DynamicInvoke(invokeArgs);
-            var value = await AwaitIfNeededAsync(result).ConfigureAwait(false);
+            object?[] invokeArgs = _bindingPlan.BindArguments(args, ct);
+            object? result = _handler.DynamicInvoke(invokeArgs);
+            object? value = await AwaitIfNeededAsync(result).ConfigureAwait(false);
             return ConvertToToolResult(value);
         }
 
@@ -168,20 +167,20 @@ public sealed class McpSdkServerBuilder
             if (result is Task task)
             {
                 await task.ConfigureAwait(false);
-                var taskType = task.GetType();
+                Type taskType = task.GetType();
                 if (taskType.IsGenericType)
                     return taskType.GetProperty("Result")?.GetValue(task);
                 return null;
             }
 
-            var type = result.GetType();
+            Type type = result.GetType();
             if (type.FullName is { } fullName && fullName.StartsWith("System.Threading.Tasks.ValueTask", StringComparison.Ordinal))
             {
-                var asTask = type.GetMethod("AsTask", BindingFlags.Public | BindingFlags.Instance);
+                MethodInfo? asTask = type.GetMethod("AsTask", BindingFlags.Public | BindingFlags.Instance);
                 if (asTask != null && asTask.Invoke(result, null) is Task vtTask)
                 {
                     await vtTask.ConfigureAwait(false);
-                    var vtTaskType = vtTask.GetType();
+                    Type vtTaskType = vtTask.GetType();
                     if (vtTaskType.IsGenericType)
                         return vtTaskType.GetProperty("Result")?.GetValue(vtTask);
                     return null;
@@ -206,15 +205,15 @@ public sealed class McpSdkServerBuilder
 
             public static BindingPlan Create(MethodInfo method)
             {
-                var allParams = method.GetParameters();
-                var hasCt = allParams.Length > 0 && allParams[^1].ParameterType == typeof(CancellationToken);
-                var logicalParams = hasCt ? allParams[..^1] : allParams;
+                ParameterInfo[] allParams = method.GetParameters();
+                bool hasCt = allParams.Length > 0 && allParams[^1].ParameterType == typeof(CancellationToken);
+                ParameterInfo[] logicalParams = hasCt ? allParams[..^1] : allParams;
 
-                var bindWhole = false;
+                bool bindWhole = false;
                 if (logicalParams.Length == 1 && IsComplexObject(logicalParams[0].ParameterType))
                     bindWhole = true;
 
-                var parameters = logicalParams
+                List<BindingParameter> parameters = logicalParams
                     .Select(p => new BindingParameter(p))
                     .ToList();
 
@@ -225,21 +224,21 @@ public sealed class McpSdkServerBuilder
             {
                 if (_bindWholeObject && _parameters.Count == 1)
                 {
-                    var schema = McpSchemaGenerator.GenerateForType(_parameters[0].ParameterType);
+                    object schema = McpSchemaGenerator.GenerateForType(_parameters[0].ParameterType);
                     return JsonSerializer.SerializeToElement(schema, ToolJsonOptions);
                 }
 
-                var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-                var required = new List<string>();
+                Dictionary<string, object?> properties = new Dictionary<string, object?>(StringComparer.Ordinal);
+                List<string> required = new List<string>();
 
-                foreach (var p in _parameters)
+                foreach (BindingParameter p in _parameters)
                 {
                     properties[p.JsonName] = McpSchemaGenerator.GenerateForType(p.ParameterType);
                     if (p.IsRequired)
                         required.Add(p.JsonName);
                 }
 
-                var root = new Dictionary<string, object?>
+                Dictionary<string, object?> root = new Dictionary<string, object?>
                 {
                     ["type"] = "object",
                     ["properties"] = properties
@@ -253,7 +252,7 @@ public sealed class McpSdkServerBuilder
 
             public object?[] BindArguments(JsonElement args, CancellationToken ct)
             {
-                var values = new object?[_parameters.Count + (_hasCancellationToken ? 1 : 0)];
+                object?[] values = new object?[_parameters.Count + (_hasCancellationToken ? 1 : 0)];
 
                 if (_bindWholeObject && _parameters.Count == 1)
                 {
@@ -261,9 +260,9 @@ public sealed class McpSdkServerBuilder
                 }
                 else
                 {
-                    foreach (var (p, idx) in _parameters.Select((p, i) => (p, i)))
+                    foreach ((BindingParameter? p, int idx) in _parameters.Select((p, i) => (p, i)))
                     {
-                        if (!TryGetProperty(args, p.JsonName, out var prop))
+                        if (!TryGetProperty(args, p.JsonName, out JsonElement prop))
                         {
                             if (p.HasDefaultValue)
                             {
@@ -297,7 +296,7 @@ public sealed class McpSdkServerBuilder
 
                 if (args.ValueKind == JsonValueKind.Object)
                 {
-                    foreach (var prop in args.EnumerateObject())
+                    foreach (JsonProperty prop in args.EnumerateObject())
                     {
                         if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
                         {
@@ -326,7 +325,7 @@ public sealed class McpSdkServerBuilder
                 {
                     if (element.ValueKind == JsonValueKind.String)
                         return Enum.Parse(targetType, element.GetString() ?? "", ignoreCase: true);
-                    if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var i))
+                    if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out int i))
                         return Enum.ToObject(targetType, i);
                 }
 
@@ -335,19 +334,19 @@ public sealed class McpSdkServerBuilder
                     if (element.ValueKind == JsonValueKind.Null)
                         return null;
 
-                    var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
-                    if (underlying == typeof(decimal) && element.TryGetDecimal(out var dec))
+                    Type underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
+                    if (underlying == typeof(decimal) && element.TryGetDecimal(out decimal dec))
                         return dec;
 
-                    var isIntegral = IsIntegralNumber(targetType);
+                    bool isIntegral = IsIntegralNumber(targetType);
                     if (isIntegral)
                     {
-                        if (element.TryGetInt64(out var l))
+                        if (element.TryGetInt64(out long l))
                             return Convert.ChangeType(l, Nullable.GetUnderlyingType(targetType) ?? targetType, System.Globalization.CultureInfo.InvariantCulture);
                     }
                     else
                     {
-                        if (element.TryGetDouble(out var d))
+                        if (element.TryGetDouble(out double d))
                             return Convert.ChangeType(d, Nullable.GetUnderlyingType(targetType) ?? targetType, System.Globalization.CultureInfo.InvariantCulture);
                     }
                 }
@@ -420,13 +419,13 @@ public sealed class McpSdkServerBuilder
             public BindingParameter(ParameterInfo p)
             {
                 ParameterType = p.ParameterType;
-                var paramName = p.Name ?? throw new ArgumentException("Delegate parameters must have names.");
+                string paramName = p.Name ?? throw new ArgumentException("Delegate parameters must have names.");
                 JsonName = JsonNamingPolicy.CamelCase.ConvertName(paramName);
 
                 HasDefaultValue = p.HasDefaultValue;
                 DefaultValue = p.HasDefaultValue ? p.DefaultValue : null;
 
-                var nullability = Nullability.Create(p);
+                NullabilityInfo nullability = Nullability.Create(p);
                 AllowsNull = nullability.WriteState == NullabilityState.Nullable ||
                              Nullable.GetUnderlyingType(ParameterType) != null;
 
@@ -474,14 +473,14 @@ public sealed class McpSdkServerBuilder
             if (IsNumber(type))
                 return new Dictionary<string, object?> { ["type"] = "number" };
 
-            if (TryGetEnumerableElementType(type, out var elementType))
+            if (TryGetEnumerableElementType(type, out Type? elementType))
                 return new Dictionary<string, object?>
                 {
                     ["type"] = "array",
                     ["items"] = GenerateForType(elementType)
                 };
 
-            if (TryGetStringDictionaryValueType(type, out var valueType))
+            if (TryGetStringDictionaryValueType(type, out Type? valueType))
                 return new Dictionary<string, object?>
                 {
                     ["type"] = "object",
@@ -493,32 +492,32 @@ public sealed class McpSdkServerBuilder
 
         private static object GenerateObjectSchema(Type type)
         {
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            PropertyInfo[] props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.GetMethod != null && p.GetMethod.IsPublic)
                 .Where(p => p.GetIndexParameters().Length == 0)
                 .ToArray();
 
-            var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-            var required = new List<string>();
+            Dictionary<string, object?> properties = new Dictionary<string, object?>(StringComparer.Ordinal);
+            List<string> required = new List<string>();
 
-            foreach (var prop in props)
+            foreach (PropertyInfo? prop in props)
             {
-                var jsonName = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                string jsonName = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
                                ?? JsonNamingPolicy.CamelCase.ConvertName(prop.Name);
 
                 properties[jsonName] = GenerateForType(prop.PropertyType);
 
-                var nullability = Nullability.Create(prop);
-                var allowsNull = nullability.WriteState == NullabilityState.Nullable ||
+                NullabilityInfo nullability = Nullability.Create(prop);
+                bool allowsNull = nullability.WriteState == NullabilityState.Nullable ||
                                  Nullable.GetUnderlyingType(prop.PropertyType) != null;
 
-                var requiredByAttr = prop.GetCustomAttribute<RequiredAttribute>() != null;
-                var requiredByNullability = !allowsNull;
+                bool requiredByAttr = prop.GetCustomAttribute<RequiredAttribute>() != null;
+                bool requiredByNullability = !allowsNull;
                 if (requiredByAttr || requiredByNullability)
                     required.Add(jsonName);
             }
 
-            var schema = new Dictionary<string, object?>
+            Dictionary<string, object?> schema = new Dictionary<string, object?>
             {
                 ["type"] = "object",
                 ["properties"] = properties
@@ -527,7 +526,7 @@ public sealed class McpSdkServerBuilder
             if (required.Count > 0)
                 schema["required"] = required;
 
-            var typeDescription = type.GetCustomAttribute<DescriptionAttribute>()?.Description;
+            string? typeDescription = type.GetCustomAttribute<DescriptionAttribute>()?.Description;
             if (!string.IsNullOrWhiteSpace(typeDescription))
                 schema["description"] = typeDescription;
 
@@ -569,7 +568,7 @@ public sealed class McpSdkServerBuilder
                 return true;
             }
 
-            var enumerable = type.GetInterfaces()
+            Type? enumerable = type.GetInterfaces()
                 .Concat([type])
                 .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
 
@@ -585,13 +584,13 @@ public sealed class McpSdkServerBuilder
 
         private static bool TryGetStringDictionaryValueType(Type type, out Type valueType)
         {
-            var dict = type.GetInterfaces()
+            Type? dict = type.GetInterfaces()
                 .Concat([type])
                 .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>));
 
             if (dict != null)
             {
-                var args = dict.GetGenericArguments();
+                Type[] args = dict.GetGenericArguments();
                 if (args[0] == typeof(string))
                 {
                     valueType = args[1];

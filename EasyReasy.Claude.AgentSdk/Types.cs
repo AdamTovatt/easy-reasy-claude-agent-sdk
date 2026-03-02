@@ -265,10 +265,10 @@ public record UserMessage : Message
     {
         if (Content.ValueKind == JsonValueKind.Array)
         {
-            var blocks = new List<ContentBlock>();
-            foreach (var element in Content.EnumerateArray())
+            List<ContentBlock> blocks = new List<ContentBlock>();
+            foreach (JsonElement element in Content.EnumerateArray())
             {
-                var block = JsonSerializer.Deserialize<ContentBlock>(element, ClaudeJsonContext.Default.ContentBlock);
+                ContentBlock? block = JsonSerializer.Deserialize<ContentBlock>(element, ClaudeJsonContext.Default.ContentBlock);
                 if (block != null)
                     blocks.Add(block);
             }
@@ -411,7 +411,7 @@ public record PermissionUpdate(
     /// </summary>
     public Dictionary<string, object?> ToDictionary()
     {
-        var result = new Dictionary<string, object?>
+        Dictionary<string, object?> result = new Dictionary<string, object?>
         {
             ["type"] = Type.ToJsonString()
         };

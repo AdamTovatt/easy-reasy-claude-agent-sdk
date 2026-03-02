@@ -1,5 +1,4 @@
 using System.Text.Json;
-using EasyReasy.Claude.AgentSdk.Builders;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -12,7 +11,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void PreToolUse_RegistersHook()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.PreToolUse("Bash", DummyCallback))
             .Build();
 
@@ -25,7 +24,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void PostToolUse_RegistersHook()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.PostToolUse("*", DummyCallback))
             .Build();
 
@@ -37,7 +36,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void MultipleHooks_SameEvent_RegistersAll()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h
                 .PreToolUse("Bash", DummyCallback)
                 .PreToolUse("Read", DummyCallback))
@@ -52,7 +51,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void MultipleHookTypes_RegistersSeparately()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h
                 .PreToolUse("Bash", DummyCallback)
                 .PostToolUse("Bash", DummyCallback)
@@ -69,7 +68,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void PreToolUse_WithTimeout_SetsTimeout()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.PreToolUse("Bash", DummyCallback, timeout: 5000))
             .Build();
 
@@ -79,7 +78,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void PreToolUse_WithMultipleCallbacks_RegistersAll()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.PreToolUse("Bash", DummyCallback, DummyCallback))
             .Build();
 
@@ -89,7 +88,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void OnStop_RegistersWithNullMatcher()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.OnStop(DummyCallback))
             .Build();
 
@@ -99,7 +98,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void UserPromptSubmit_Registers()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.UserPromptSubmit(DummyCallback))
             .Build();
 
@@ -109,7 +108,7 @@ public sealed class HooksBuilderTests
     [Fact]
     public void On_GenericMethod_Works()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Hooks(h => h.On(HookEvent.PreCompact, null, DummyCallback))
             .Build();
 

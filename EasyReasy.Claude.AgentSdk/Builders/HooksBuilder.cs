@@ -80,7 +80,7 @@ public sealed class HooksBuilder
 
     private void AddHook(HookEvent hookEvent, string? matcher, HookCallback callback, double? timeout = null)
     {
-        if (!_hooks.TryGetValue(hookEvent, out var list))
+        if (!_hooks.TryGetValue(hookEvent, out List<HookMatcher>? list))
         {
             list = [];
             _hooks[hookEvent] = list;
@@ -90,7 +90,7 @@ public sealed class HooksBuilder
 
     private void AddHook(HookEvent hookEvent, string? matcher, HookCallback[] callbacks)
     {
-        if (!_hooks.TryGetValue(hookEvent, out var list))
+        if (!_hooks.TryGetValue(hookEvent, out List<HookMatcher>? list))
         {
             list = [];
             _hooks[hookEvent] = list;

@@ -1,7 +1,8 @@
-using System.Runtime.CompilerServices;
 using EasyReasy.Claude.AgentSdk.Internal;
 using EasyReasy.Claude.AgentSdk.Mcp;
 using EasyReasy.Claude.AgentSdk.Transport;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace EasyReasy.Claude.AgentSdk;
 
@@ -34,7 +35,7 @@ public static class Claude
 
         if (options.McpServers is Dictionary<string, object> servers)
         {
-            foreach (var (_, config) in servers)
+            foreach ((string _, object? config) in servers)
             {
                 if (config is McpSdkServerConfig)
                     return true;
@@ -52,11 +53,11 @@ public static class Claude
         if (options.McpServers is not Dictionary<string, object> servers)
             return;
 
-        foreach (var (name, config) in servers)
+        foreach ((string? name, object? config) in servers)
         {
             if (config is McpSdkServerConfig sdkConfig)
             {
-                var bridge = new SdkMcpBridge(sdkConfig.Handlers, name);
+                SdkMcpBridge bridge = new SdkMcpBridge(sdkConfig.Handlers, name);
                 await bridge.StartAsync(cancellationToken);
                 queryHandler.RegisterSdkMcpBridge(name, bridge);
             }
@@ -156,16 +157,16 @@ public static class Claude
         // If hooks / can_use_tool / in-process MCP are enabled, we must be able to answer control requests.
         if (transport == null && !NeedsControlProtocol(options))
         {
-            await using var printTransport = new SubprocessTransport(prompt, options);
+            await using SubprocessTransport printTransport = new SubprocessTransport(prompt, options);
             await printTransport.ConnectAsync(cancellationToken);
 
-            await foreach (var json in printTransport.ReadMessagesAsync(cancellationToken))
+            await foreach (JsonElement json in printTransport.ReadMessagesAsync(cancellationToken))
                 yield return MessageParser.Parse(json);
 
             yield break;
         }
 
-        await foreach (var msg in QueryAsync(SinglePromptStream(prompt, cancellationToken: cancellationToken), options, transport, cancellationToken))
+        await foreach (Message msg in QueryAsync(SinglePromptStream(prompt, cancellationToken: cancellationToken), options, transport, cancellationToken))
             yield return msg;
     }
 
@@ -188,16 +189,16 @@ public static class Claude
         transport ??= new SubprocessTransport(prompt, options);
         await transport.ConnectAsync(cancellationToken);
 
-        await using var queryHandler = new QueryHandler(transport, options);
+        await using QueryHandler queryHandler = new QueryHandler(transport, options);
         await InitializeSdkMcpServersAsync(options, queryHandler, cancellationToken);
         await queryHandler.StartAsync(cancellationToken);
         await queryHandler.InitializeAsync(cancellationToken);
 
-        var inputTask = queryHandler.StreamInputAsync(prompt, cancellationToken);
+        Task inputTask = queryHandler.StreamInputAsync(prompt, cancellationToken);
 
         try
         {
-            await foreach (var message in queryHandler.ReceiveMessagesAsync(cancellationToken))
+            await foreach (Message message in queryHandler.ReceiveMessagesAsync(cancellationToken))
                 yield return message;
         }
         finally

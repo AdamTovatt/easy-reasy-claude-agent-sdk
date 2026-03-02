@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace EasyReasy.Claude.AgentSdk.Transport;
 
@@ -55,50 +56,50 @@ public class SubprocessTransport : ITransport
     private static string FindCli()
     {
         // Check bundled CLI first
-        var bundledCli = FindBundledCli();
+        string? bundledCli = FindBundledCli();
         if (bundledCli != null)
             return bundledCli;
 
         // Check environment variable
-        var cliPathEnv = Environment.GetEnvironmentVariable("CLAUDE_CLI_PATH");
+        string? cliPathEnv = Environment.GetEnvironmentVariable("CLAUDE_CLI_PATH");
         if (!string.IsNullOrEmpty(cliPathEnv) && File.Exists(cliPathEnv))
             return cliPathEnv;
 
         // Check PATH
-        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
-        var pathDirs = pathEnv.Split(Path.PathSeparator);
+        string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
+        string[] pathDirs = pathEnv.Split(Path.PathSeparator);
 
         // On Windows, npm installs claude.cmd (batch wrapper), not claude.exe
-        var cliNames = OperatingSystem.IsWindows()
+        string[] cliNames = OperatingSystem.IsWindows()
             ? new[] { "claude.cmd", "claude.exe", "claude" }
             : new[] { "claude" };
 
-        foreach (var dir in pathDirs)
+        foreach (string dir in pathDirs)
         {
-            foreach (var cliName in cliNames)
+            foreach (string? cliName in cliNames)
             {
-                var fullPath = Path.Combine(dir, cliName);
+                string fullPath = Path.Combine(dir, cliName);
                 if (File.Exists(fullPath))
                     return fullPath;
             }
         }
 
         // Check common locations
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
         // Check WinGet installation (folder name varies, so search for it)
-        var wingetPkgDir = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
+        string wingetPkgDir = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
         string? wingetClaudePath = null;
         if (OperatingSystem.IsWindows() && Directory.Exists(wingetPkgDir))
         {
             try
             {
-                var claudePkg = Directory.GetDirectories(wingetPkgDir, "Anthropic.ClaudeCode*").FirstOrDefault();
+                string? claudePkg = Directory.GetDirectories(wingetPkgDir, "Anthropic.ClaudeCode*").FirstOrDefault();
                 if (claudePkg != null)
                 {
-                    var candidate = Path.Combine(claudePkg, "claude.exe");
+                    string candidate = Path.Combine(claudePkg, "claude.exe");
                     if (File.Exists(candidate))
                         wingetClaudePath = candidate;
                 }
@@ -106,7 +107,7 @@ public class SubprocessTransport : ITransport
             catch { /* ignore search errors */ }
         }
 
-        var locations = OperatingSystem.IsWindows()
+        string?[] locations = OperatingSystem.IsWindows()
             ? new[]
             {
                 // WinGet installation (if found)
@@ -131,7 +132,7 @@ public class SubprocessTransport : ITransport
                 "/usr/local/bin/claude"
             };
 
-        foreach (var path in locations)
+        foreach (string? path in locations)
         {
             if (File.Exists(path))
                 return path;
@@ -147,11 +148,11 @@ public class SubprocessTransport : ITransport
 
     private static string? FindBundledCli()
     {
-        var cliName = OperatingSystem.IsWindows() ? "claude.exe" : "claude";
-        var assemblyDir = AppContext.BaseDirectory;
+        string cliName = OperatingSystem.IsWindows() ? "claude.exe" : "claude";
+        string assemblyDir = AppContext.BaseDirectory;
         if (string.IsNullOrWhiteSpace(assemblyDir)) return null;
 
-        var bundledPath = Path.Combine(assemblyDir, "_bundled", cliName);
+        string bundledPath = Path.Combine(assemblyDir, "_bundled", cliName);
         return File.Exists(bundledPath) ? bundledPath : null;
     }
 
@@ -166,8 +167,8 @@ public class SubprocessTransport : ITransport
 
     private string? BuildSettingsValue()
     {
-        var hasSettings = _options.Settings != null;
-        var hasSandbox = _options.Sandbox != null;
+        bool hasSettings = _options.Settings != null;
+        bool hasSandbox = _options.Sandbox != null;
 
         if (!hasSettings && !hasSandbox)
             return null;
@@ -176,16 +177,16 @@ public class SubprocessTransport : ITransport
             return _options.Settings;
 
         // Merge settings with sandbox
-        var settingsObj = new Dictionary<string, object?>();
+        Dictionary<string, object?> settingsObj = new Dictionary<string, object?>();
 
         if (hasSettings)
         {
-            var settingsStr = _options.Settings!.Trim();
+            string settingsStr = _options.Settings!.Trim();
             if (settingsStr.StartsWith('{') && settingsStr.EndsWith('}'))
             {
                 try
                 {
-                    var parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(settingsStr);
+                    Dictionary<string, object?>? parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(settingsStr);
                     if (parsed != null)
                         settingsObj = parsed;
                 }
@@ -194,8 +195,8 @@ public class SubprocessTransport : ITransport
                     // Try as file path
                     if (File.Exists(settingsStr))
                     {
-                        var content = File.ReadAllText(settingsStr);
-                        var parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(content);
+                        string content = File.ReadAllText(settingsStr);
+                        Dictionary<string, object?>? parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(content);
                         if (parsed != null)
                             settingsObj = parsed;
                     }
@@ -203,8 +204,8 @@ public class SubprocessTransport : ITransport
             }
             else if (File.Exists(settingsStr))
             {
-                var content = File.ReadAllText(settingsStr);
-                var parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(content);
+                string content = File.ReadAllText(settingsStr);
+                Dictionary<string, object?>? parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(content);
                 if (parsed != null)
                     settingsObj = parsed;
             }
@@ -218,7 +219,7 @@ public class SubprocessTransport : ITransport
 
     private List<string> BuildCommand()
     {
-        var cmd = new List<string> { _cliPath, "--output-format", "stream-json", "--verbose" };
+        List<string> cmd = new List<string> { _cliPath, "--output-format", "stream-json", "--verbose" };
 
         // System prompt
         if (_options.SystemPrompt == null)
@@ -260,7 +261,7 @@ public class SubprocessTransport : ITransport
         if (_options.Betas.Count > 0)
             cmd.AddRange(["--betas", string.Join(",", _options.Betas)]);
 
-        var permissionPromptToolName = _options.PermissionPromptToolName;
+        string? permissionPromptToolName = _options.PermissionPromptToolName;
         if (permissionPromptToolName == null && _options.CanUseTool != null)
             permissionPromptToolName = "stdio";
 
@@ -276,11 +277,11 @@ public class SubprocessTransport : ITransport
         if (_options.Resume != null)
             cmd.AddRange(["--resume", _options.Resume]);
 
-        var settingsValue = BuildSettingsValue();
+        string? settingsValue = BuildSettingsValue();
         if (settingsValue != null)
             cmd.AddRange(["--settings", settingsValue]);
 
-        foreach (var dir in _options.AddDirs)
+        foreach (string dir in _options.AddDirs)
             cmd.AddRange(["--add-dir", dir]);
 
         // MCP servers
@@ -305,23 +306,23 @@ public class SubprocessTransport : ITransport
 
         if (_options.Agents != null && _options.Agents.Count > 0)
         {
-            var agentsJson = JsonSerializer.Serialize(_options.Agents);
+            string agentsJson = JsonSerializer.Serialize(_options.Agents);
             cmd.AddRange(["--agents", agentsJson]);
         }
 
         if (_options.SettingSources != null)
         {
-            var sourcesValue = string.Join(",", _options.SettingSources.Select(s => s.ToString().ToLowerInvariant()));
+            string sourcesValue = string.Join(",", _options.SettingSources.Select(s => s.ToString().ToLowerInvariant()));
             cmd.AddRange(["--setting-sources", sourcesValue]);
         }
 
-        foreach (var plugin in _options.Plugins)
+        foreach (SdkPluginConfig plugin in _options.Plugins)
         {
             if (plugin.Type == "local")
                 cmd.AddRange(["--plugin-dir", plugin.Path]);
         }
 
-        foreach (var (flag, value) in _options.ExtraArgs)
+        foreach ((string? flag, string? value) in _options.ExtraArgs)
         {
             if (value == null)
                 cmd.Add($"--{flag}");
@@ -333,9 +334,9 @@ public class SubprocessTransport : ITransport
             cmd.AddRange(["--max-thinking-tokens", _options.MaxThinkingTokens.Value.ToString()]);
 
         if (_options.OutputFormat.HasValue &&
-            _options.OutputFormat.Value.TryGetProperty("type", out var typeElement) &&
+            _options.OutputFormat.Value.TryGetProperty("type", out JsonElement typeElement) &&
             typeElement.GetString() == "json_schema" &&
-            _options.OutputFormat.Value.TryGetProperty("schema", out var schema))
+            _options.OutputFormat.Value.TryGetProperty("schema", out JsonElement schema))
         {
             cmd.AddRange(["--json-schema", schema.GetRawText()]);
         }
@@ -351,16 +352,16 @@ public class SubprocessTransport : ITransport
         }
 
         // Check if command line is too long (Windows limitation) and spill agents JSON to a temp file if needed.
-        var cmdStr = string.Join(" ", cmd);
+        string cmdStr = string.Join(" ", cmd);
         if (cmdStr.Length > CmdLengthLimit && _options.Agents != null && _options.Agents.Count > 0)
         {
             try
             {
-                var agentsIdx = cmd.IndexOf("--agents");
+                int agentsIdx = cmd.IndexOf("--agents");
                 if (agentsIdx >= 0 && agentsIdx + 1 < cmd.Count)
                 {
-                    var agentsJsonValue = cmd[agentsIdx + 1];
-                    var tempFile = Path.Combine(Path.GetTempPath(), $"claude-agent-sdk-agents-{Guid.NewGuid():N}.json");
+                    string agentsJsonValue = cmd[agentsIdx + 1];
+                    string tempFile = Path.Combine(Path.GetTempPath(), $"claude-agent-sdk-agents-{Guid.NewGuid():N}.json");
                     File.WriteAllText(tempFile, agentsJsonValue, Encoding.UTF8);
                     _tempFiles.Add(tempFile);
                     cmd[agentsIdx + 1] = $"@{tempFile}";
@@ -385,9 +386,9 @@ public class SubprocessTransport : ITransport
         if (Environment.GetEnvironmentVariable("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK") == null)
             await CheckClaudeVersionAsync(cancellationToken);
 
-        var cmd = BuildCommand();
+        List<string> cmd = BuildCommand();
 
-        var startInfo = new ProcessStartInfo
+        ProcessStartInfo startInfo = new ProcessStartInfo
         {
             FileName = cmd[0],
             UseShellExecute = false,
@@ -406,7 +407,7 @@ public class SubprocessTransport : ITransport
             startInfo.WorkingDirectory = _cwd;
 
         // Set environment
-        foreach (var (key, value) in _options.Env)
+        foreach ((string? key, string? value) in _options.Env)
             startInfo.Environment[key] = value;
         startInfo.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-dotnet";
         startInfo.Environment["CLAUDE_AGENT_SDK_VERSION"] = GetType().Assembly.GetName().Version?.ToString() ?? "0.1.0";
@@ -458,7 +459,7 @@ public class SubprocessTransport : ITransport
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var line = await _stderr.ReadLineAsync(cancellationToken);
+                string? line = await _stderr.ReadLineAsync(cancellationToken);
                 if (line == null) break;
 
                 _stderrLines.Add(line);
@@ -524,7 +525,7 @@ public class SubprocessTransport : ITransport
         if (_process == null || _stdout == null)
             throw new CliConnectionException("Not connected");
 
-        var jsonBuffer = new StringBuilder();
+        StringBuilder jsonBuffer = new StringBuilder();
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -541,7 +542,7 @@ public class SubprocessTransport : ITransport
             if (line == null)
                 break;
 
-            var lineStr = line.Trim();
+            string lineStr = line.Trim();
             if (string.IsNullOrEmpty(lineStr))
                 continue;
 
@@ -549,7 +550,7 @@ public class SubprocessTransport : ITransport
 
             if (jsonBuffer.Length > _maxBufferSize)
             {
-                var bufferLength = jsonBuffer.Length;
+                int bufferLength = jsonBuffer.Length;
                 jsonBuffer.Clear();
                 throw new JsonDecodeException(
                     $"JSON message exceeded maximum buffer size of {_maxBufferSize} bytes",
@@ -575,8 +576,8 @@ public class SubprocessTransport : ITransport
         // Flush any remaining buffered JSON at EOF.
         if (jsonBuffer.Length > 0)
         {
-            var trailing = default(JsonElement);
-            var hasTrailing = false;
+            JsonElement trailing = default(JsonElement);
+            bool hasTrailing = false;
             try
             {
                 trailing = JsonSerializer.Deserialize<JsonElement>(jsonBuffer.ToString());
@@ -624,10 +625,10 @@ public class SubprocessTransport : ITransport
     {
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(2));
 
-            var startInfo = new ProcessStartInfo
+            ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = _cliPath,
                 Arguments = "-v",
@@ -637,17 +638,17 @@ public class SubprocessTransport : ITransport
                 CreateNoWindow = true
             };
 
-            using var process = Process.Start(startInfo);
+            using Process? process = Process.Start(startInfo);
             if (process == null) return;
 
-            var output = await process.StandardOutput.ReadToEndAsync(cts.Token);
+            string output = await process.StandardOutput.ReadToEndAsync(cts.Token);
             await process.WaitForExitAsync(cts.Token);
 
-            var match = System.Text.RegularExpressions.Regex.Match(output, @"(\d+\.\d+\.\d+)");
+            Match match = System.Text.RegularExpressions.Regex.Match(output, @"(\d+\.\d+\.\d+)");
             if (match.Success)
             {
-                var version = Version.Parse(match.Groups[1].Value);
-                var minVersion = Version.Parse(MinimumClaudeCodeVersion);
+                Version version = Version.Parse(match.Groups[1].Value);
+                Version minVersion = Version.Parse(MinimumClaudeCodeVersion);
 
                 if (version < minVersion)
                 {
@@ -669,7 +670,7 @@ public class SubprocessTransport : ITransport
     public async Task CloseAsync()
     {
         // Clean up temp files
-        foreach (var tempFile in _tempFiles)
+        foreach (string tempFile in _tempFiles)
         {
             try { File.Delete(tempFile); } catch { }
         }

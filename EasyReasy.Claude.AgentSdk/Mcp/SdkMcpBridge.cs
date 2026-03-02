@@ -254,9 +254,9 @@ internal class SdkMcpBridge : IAsyncDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
-            var id = message.TryGetProperty("id", out var idEl) ? idEl.Clone() : default;
-            var paramsEl = message.TryGetProperty("params", out var p) ? p : default;
+            string? method = message.TryGetProperty("method", out JsonElement m) ? m.GetString() : null;
+            JsonElement id = message.TryGetProperty("id", out JsonElement idEl) ? idEl.Clone() : default;
+            JsonElement paramsEl = message.TryGetProperty("params", out JsonElement p) ? p : default;
 
             object? result = null;
             string? error = null;
@@ -319,7 +319,7 @@ internal class SdkMcpBridge : IAsyncDisposable
     private object HandleInitialize()
     {
         // Build capabilities dynamically - only include supported capabilities
-        var capabilities = new Dictionary<string, object>();
+        Dictionary<string, object> capabilities = new Dictionary<string, object>();
         if (_handlers.ListTools != null)
             capabilities["tools"] = new { };
         if (_handlers.ListPrompts != null)
@@ -344,7 +344,7 @@ internal class SdkMcpBridge : IAsyncDisposable
         if (_handlers.ListTools == null)
             return new { tools = Array.Empty<object>() };
 
-        var tools = await _handlers.ListTools(ct);
+        IReadOnlyList<McpToolDefinition> tools = await _handlers.ListTools(ct);
         return new { tools };
     }
 
@@ -353,12 +353,12 @@ internal class SdkMcpBridge : IAsyncDisposable
         if (_handlers.CallTool == null)
             throw new NotSupportedException("Tool calls not supported by this server");
 
-        var name = paramsEl.GetProperty("name").GetString()!;
-        var arguments = paramsEl.TryGetProperty("arguments", out var args)
+        string name = paramsEl.GetProperty("name").GetString()!;
+        JsonElement arguments = paramsEl.TryGetProperty("arguments", out JsonElement args)
             ? args
             : JsonSerializer.SerializeToElement(new { });
 
-        var result = await _handlers.CallTool(name, arguments, ct);
+        McpToolResult result = await _handlers.CallTool(name, arguments, ct);
         return result;
     }
 
@@ -367,7 +367,7 @@ internal class SdkMcpBridge : IAsyncDisposable
         if (_handlers.ListPrompts == null)
             return new { prompts = Array.Empty<object>() };
 
-        var prompts = await _handlers.ListPrompts(ct);
+        IReadOnlyList<McpPromptDefinition> prompts = await _handlers.ListPrompts(ct);
         return new { prompts };
     }
 
@@ -376,12 +376,12 @@ internal class SdkMcpBridge : IAsyncDisposable
         if (_handlers.GetPrompt == null)
             throw new NotSupportedException("Prompts not supported by this server");
 
-        var name = paramsEl.GetProperty("name").GetString()!;
-        var arguments = paramsEl.TryGetProperty("arguments", out var args)
+        string name = paramsEl.GetProperty("name").GetString()!;
+        Dictionary<string, string>? arguments = paramsEl.TryGetProperty("arguments", out JsonElement args)
             ? JsonSerializer.Deserialize<Dictionary<string, string>>(args.GetRawText())
             : null;
 
-        var result = await _handlers.GetPrompt(name, arguments, ct);
+        McpPromptResult result = await _handlers.GetPrompt(name, arguments, ct);
         return result;
     }
 
@@ -390,7 +390,7 @@ internal class SdkMcpBridge : IAsyncDisposable
         if (_handlers.ListResources == null)
             return new { resources = Array.Empty<object>() };
 
-        var resources = await _handlers.ListResources(ct);
+        IReadOnlyList<McpResourceDefinition> resources = await _handlers.ListResources(ct);
         return new { resources };
     }
 
@@ -399,8 +399,8 @@ internal class SdkMcpBridge : IAsyncDisposable
         if (_handlers.ReadResource == null)
             throw new NotSupportedException("Resources not supported by this server");
 
-        var uri = paramsEl.GetProperty("uri").GetString()!;
-        var result = await _handlers.ReadResource(uri, ct);
+        string uri = paramsEl.GetProperty("uri").GetString()!;
+        McpResourceResult result = await _handlers.ReadResource(uri, ct);
         return result;
     }
 

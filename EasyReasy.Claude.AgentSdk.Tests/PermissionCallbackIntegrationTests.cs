@@ -1,5 +1,4 @@
 using System.Text.Json;
-using EasyReasy.Claude.AgentSdk;
 using Xunit;
 using FactAttribute = EasyReasy.Claude.AgentSdk.Tests.IntegrationFactAttribute;
 
@@ -12,11 +11,11 @@ namespace EasyReasy.Claude.AgentSdk.Tests;
 public class PermissionCallbackIntegrationTests
 {
     [Fact]
-    public async Task CanUseTool_IsInvokedForToolCalls()        
+    public async Task CanUseTool_IsInvokedForToolCalls()
     {
-        var permissionChecks = new List<string>();
+        List<string> permissionChecks = new List<string>();
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -27,12 +26,12 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 3
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("List files in the current directory.");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -44,9 +43,9 @@ public class PermissionCallbackIntegrationTests
     [Fact]
     public async Task CanUseTool_AllowPermitsToolExecution()
     {
-        var resultReceived = false;
+        bool resultReceived = false;
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -56,12 +55,12 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 3
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("What files are in the current directory?");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             if (msg is ResultMessage)
                 resultReceived = true;
@@ -73,9 +72,9 @@ public class PermissionCallbackIntegrationTests
     [Fact]
     public async Task CanUseTool_DenyBlocksToolExecution()
     {
-        var deniedTools = new List<string>();
+        List<string> deniedTools = new List<string>();
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -90,12 +89,12 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 2
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Run 'echo hello' in bash.");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -107,9 +106,9 @@ public class PermissionCallbackIntegrationTests
     [Fact]
     public async Task CanUseTool_CanInspectToolInput()
     {
-        var inspectedInputs = new List<JsonElement>();
+        List<JsonElement> inspectedInputs = new List<JsonElement>();
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -119,7 +118,7 @@ public class PermissionCallbackIntegrationTests
                 // Check for dangerous patterns
                 if (toolName == "Bash")
                 {
-                    var command = input.TryGetProperty("command", out var cmd)
+                    string command = input.TryGetProperty("command", out JsonElement cmd)
                         ? cmd.GetString() ?? ""
                         : "";
 
@@ -132,12 +131,12 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 2
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Show me the current directory listing.");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -148,9 +147,9 @@ public class PermissionCallbackIntegrationTests
     [Fact]
     public async Task CanUseTool_DenyWithInterruptStopsConversation()
     {
-        var interruptTriggered = false;
+        bool interruptTriggered = false;
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -165,12 +164,12 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 2
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Create a file called test.txt with 'hello' in it.");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -181,10 +180,10 @@ public class PermissionCallbackIntegrationTests
     [Fact]
     public async Task CanUseTool_ContextContainsSuggestions()
     {
-        var contextReceived = false;
+        bool contextReceived = false;
         ToolPermissionContext? receivedContext = null;
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -196,12 +195,12 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 2
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("What is the current working directory?");
 
-        await foreach (var msg in client.ReceiveResponseAsync())
+        await foreach (Message msg in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -213,9 +212,9 @@ public class PermissionCallbackIntegrationTests
     [Fact]
     public async Task CanUseTool_WorksWithStaticQueryAsync()
     {
-        var callbackInvoked = false;
+        bool callbackInvoked = false;
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             CanUseTool = async (toolName, input, context, ct) =>
             {
@@ -226,7 +225,7 @@ public class PermissionCallbackIntegrationTests
             MaxTurns = 2
         };
 
-        await foreach (var msg in Claude.QueryAsync("List files in the current directory", options))
+        await foreach (Message msg in Claude.QueryAsync("List files in the current directory", options))
         {
             // Consume messages
         }

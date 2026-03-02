@@ -1,8 +1,8 @@
-using System.Runtime.CompilerServices;
-using System.Text.Json;
 using EasyReasy.Claude.AgentSdk.Internal;
 using EasyReasy.Claude.AgentSdk.Mcp;
 using EasyReasy.Claude.AgentSdk.Transport;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace EasyReasy.Claude.AgentSdk;
 
@@ -123,7 +123,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
             if (prompt != null)
             {
                 throw new ArgumentException(
-                    "can_use_tool callback requires streaming mode. " +   
+                    "can_use_tool callback requires streaming mode. " +
                     "Please provide prompt as null for interactive mode or use the stream overload."
                 );
             }
@@ -184,11 +184,11 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await _transport.ConnectAsync(cancellationToken);
 
         // Calculate initialize timeout
-        var timeoutMs = int.TryParse(
+        int timeoutMs = int.TryParse(
             Environment.GetEnvironmentVariable("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"),
-            out var ms
+            out int ms
         ) ? ms : 60000;
-        var initializeTimeout = TimeSpan.FromMilliseconds(Math.Max(timeoutMs, 60000));
+        TimeSpan initializeTimeout = TimeSpan.FromMilliseconds(Math.Max(timeoutMs, 60000));
 
         // Create query handler
         _queryHandler = new QueryHandler(_transport, _options, initializeTimeout);
@@ -224,12 +224,12 @@ public class ClaudeSDKClient : IClaudeSDKClient
         if (_options.McpServers is not Dictionary<string, object> servers)
             return;
 
-        foreach (var (name, config) in servers)
+        foreach ((string? name, object? config) in servers)
         {
             // Check for SDK server configurations
             if (config is McpSdkServerConfig sdkConfig)
             {
-                var bridge = new SdkMcpBridge(sdkConfig.Handlers, name);
+                SdkMcpBridge bridge = new SdkMcpBridge(sdkConfig.Handlers, name);
                 await bridge.StartAsync(cancellationToken);
                 _queryHandler.RegisterSdkMcpBridge(name, bridge);
             }
@@ -251,7 +251,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         if (_queryHandler == null)
             throw new CliConnectionException("Not connected. Call ConnectAsync() first.");
 
-        await foreach (var message in _queryHandler.ReceiveMessagesAsync(cancellationToken))
+        await foreach (Message message in _queryHandler.ReceiveMessagesAsync(cancellationToken))
         {
             yield return message;
         }
@@ -268,7 +268,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
     public async IAsyncEnumerable<Message> ReceiveResponseAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var message in ReceiveMessagesAsync(cancellationToken))
+        await foreach (Message message in ReceiveMessagesAsync(cancellationToken))
         {
             yield return message;
             if (message is ResultMessage)

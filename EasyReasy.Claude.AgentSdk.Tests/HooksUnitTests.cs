@@ -1,5 +1,4 @@
 using System.Text.Json;
-using EasyReasy.Claude.AgentSdk;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -26,12 +25,12 @@ public class HooksUnitTests
     [Fact]
     public void HookMatcher_CreatesWithMatcherAndHooks()
     {
-        var hooks = new List<HookCallback>
+        List<HookCallback> hooks = new List<HookCallback>
         {
             (input, toolUseId, ctx, ct) => Task.FromResult(new HookOutput { Continue = true })
         };
 
-        var matcher = new HookMatcher("Bash", hooks);
+        HookMatcher matcher = new HookMatcher("Bash", hooks);
 
         Assert.Equal("Bash", matcher.Matcher);
         Assert.NotNull(matcher.Hooks);
@@ -41,7 +40,7 @@ public class HooksUnitTests
     [Fact]
     public void HookMatcher_WildcardMatcherWorks()
     {
-        var matcher = new HookMatcher(
+        HookMatcher matcher = new HookMatcher(
             Matcher: "*",
             Hooks: [(input, toolUseId, ctx, ct) => Task.FromResult(new HookOutput { Continue = true })]
         );
@@ -52,7 +51,7 @@ public class HooksUnitTests
     [Fact]
     public void HookMatcher_SupportsMultipleHooks()
     {
-        var matcher = new HookMatcher(
+        HookMatcher matcher = new HookMatcher(
             Matcher: "Read",
             Hooks: [
                 (input, toolUseId, ctx, ct) => Task.FromResult(new HookOutput { Continue = true }),
@@ -72,21 +71,21 @@ public class HooksUnitTests
     [Fact]
     public void HookOutput_DefaultsContinueToNull()
     {
-        var output = new HookOutput();
+        HookOutput output = new HookOutput();
         Assert.Null(output.Continue);
     }
 
     [Fact]
     public void HookOutput_CanSetContinueTrue()
     {
-        var output = new HookOutput { Continue = true };
+        HookOutput output = new HookOutput { Continue = true };
         Assert.True(output.Continue);
     }
 
     [Fact]
     public void HookOutput_CanSetDecision()
     {
-        var output = new HookOutput
+        HookOutput output = new HookOutput
         {
             Continue = false,
             Decision = "reject"
@@ -98,7 +97,7 @@ public class HooksUnitTests
     [Fact]
     public void HookOutput_CanSetReason()
     {
-        var output = new HookOutput
+        HookOutput output = new HookOutput
         {
             Continue = false,
             Decision = "reject",
@@ -111,7 +110,7 @@ public class HooksUnitTests
     [Fact]
     public void HookOutput_CanSetAllProperties()
     {
-        var output = new HookOutput
+        HookOutput output = new HookOutput
         {
             Continue = false,
             Decision = "reject",
@@ -130,7 +129,7 @@ public class HooksUnitTests
     [Fact]
     public async Task HookCallback_CanBeInvokedDirectly()
     {
-        var invoked = false;
+        bool invoked = false;
 
         HookCallback callback = (input, toolUseId, ctx, ct) =>
         {
@@ -138,9 +137,9 @@ public class HooksUnitTests
             return Task.FromResult(new HookOutput { Continue = true });
         };
 
-        var input = JsonSerializer.SerializeToElement(new { command = "ls" });
-        var context = new HookContext();
-        var result = await callback(input, "tool-123", context, CancellationToken.None);
+        JsonElement input = JsonSerializer.SerializeToElement(new { command = "ls" });
+        HookContext context = new HookContext();
+        HookOutput result = await callback(input, "tool-123", context, CancellationToken.None);
 
         Assert.True(invoked);
         Assert.True(result.Continue);
@@ -157,8 +156,8 @@ public class HooksUnitTests
             return Task.FromResult(new HookOutput { Continue = true });
         };
 
-        var input = JsonSerializer.SerializeToElement(new { command = "echo hello", timeout = 30 });
-        var context = new HookContext();
+        JsonElement input = JsonSerializer.SerializeToElement(new { command = "echo hello", timeout = 30 });
+        HookContext context = new HookContext();
         await callback(input, "tool-456", context, CancellationToken.None);
 
         Assert.NotNull(receivedInput);
@@ -177,8 +176,8 @@ public class HooksUnitTests
             return Task.FromResult(new HookOutput { Continue = true });
         };
 
-        var input = JsonSerializer.SerializeToElement(new { });
-        var context = new HookContext();
+        JsonElement input = JsonSerializer.SerializeToElement(new { });
+        HookContext context = new HookContext();
         await callback(input, "tool-use-abc123", context, CancellationToken.None);
 
         Assert.Equal("tool-use-abc123", receivedToolUseId);
@@ -195,8 +194,8 @@ public class HooksUnitTests
             return Task.FromResult(new HookOutput { Continue = true });
         };
 
-        var input = JsonSerializer.SerializeToElement(new { });
-        var context = new HookContext(Signal: "test-signal");
+        JsonElement input = JsonSerializer.SerializeToElement(new { });
+        HookContext context = new HookContext(Signal: "test-signal");
         await callback(input, "tool-789", context, CancellationToken.None);
 
         Assert.NotNull(receivedContext);
@@ -206,8 +205,8 @@ public class HooksUnitTests
     [Fact]
     public async Task HookCallback_SupportsCancellation()
     {
-        var cts = new CancellationTokenSource();
-        var cancellationObserved = false;
+        CancellationTokenSource cts = new CancellationTokenSource();
+        bool cancellationObserved = false;
 
         HookCallback callback = async (input, toolUseId, ctx, ct) =>
         {
@@ -219,8 +218,8 @@ public class HooksUnitTests
         };
 
         cts.Cancel();
-        var input = JsonSerializer.SerializeToElement(new { });
-        var context = new HookContext();
+        JsonElement input = JsonSerializer.SerializeToElement(new { });
+        HookContext context = new HookContext();
 
         try
         {
@@ -241,14 +240,14 @@ public class HooksUnitTests
     [Fact]
     public void HookContext_DefaultSignalIsNull()
     {
-        var context = new HookContext();
+        HookContext context = new HookContext();
         Assert.Null(context.Signal);
     }
 
     [Fact]
     public void HookContext_CanSetSignal()
     {
-        var context = new HookContext(Signal: "my-signal");
+        HookContext context = new HookContext(Signal: "my-signal");
         Assert.Equal("my-signal", context.Signal);
     }
 
@@ -259,14 +258,14 @@ public class HooksUnitTests
     [Fact]
     public void ClaudeAgentOptions_HooksDefaultsToNull()
     {
-        var options = new ClaudeAgentOptions();
+        ClaudeAgentOptions options = new ClaudeAgentOptions();
         Assert.Null(options.Hooks);
     }
 
     [Fact]
     public void ClaudeAgentOptions_CanSetHooks()
     {
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {
@@ -285,7 +284,7 @@ public class HooksUnitTests
     [Fact]
     public void ClaudeAgentOptions_CanSetMultipleHookEvents()
     {
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             Hooks = new Dictionary<HookEvent, IReadOnlyList<HookMatcher>>
             {

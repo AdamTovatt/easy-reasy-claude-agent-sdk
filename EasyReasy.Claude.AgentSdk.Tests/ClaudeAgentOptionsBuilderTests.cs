@@ -1,6 +1,4 @@
 using System.Text.Json;
-using EasyReasy.Claude.AgentSdk.Builders;
-using EasyReasy.Claude.AgentSdk.Mcp;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -10,7 +8,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void Build_WithDefaults_ReturnsEmptyOptions()
     {
-        var options = Claude.Options().Build();
+        ClaudeAgentOptions options = Claude.Options().Build();
 
         Assert.Null(options.SystemPrompt);
         Assert.Null(options.Model);
@@ -21,7 +19,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void SystemPrompt_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .SystemPrompt("You are helpful.")
             .Build();
 
@@ -31,7 +29,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void Model_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Model("claude-sonnet-4-20250514")
             .FallbackModel("claude-haiku")
             .Build();
@@ -43,7 +41,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void MaxTurns_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .MaxTurns(10)
             .Build();
 
@@ -53,7 +51,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void MaxBudget_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .MaxBudget(5.00m)
             .Build();
 
@@ -63,7 +61,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void AllowTools_AddsToList()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .AllowTools("Bash", "Read")
             .AllowTools("Write")
             .Build();
@@ -74,7 +72,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void DisallowTools_AddsToList()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .DisallowTools("Bash")
             .Build();
 
@@ -84,7 +82,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void Cwd_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Cwd("/home/user/project")
             .Build();
 
@@ -94,7 +92,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void PermissionMode_SetsValue()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .AcceptEdits()
             .Build();
 
@@ -104,7 +102,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void Env_SetsVariables()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Env("FOO", "bar")
             .Env("BAZ", "qux")
             .Build();
@@ -116,7 +114,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void Betas_AddsToList()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Betas("feature1", "feature2")
             .Build();
 
@@ -126,7 +124,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void AllowAllTools_SetsCallback()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .AllowAllTools()
             .Build();
 
@@ -136,11 +134,11 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public async Task AllowAllTools_CallbackReturnsAllow()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .AllowAllTools()
             .Build();
 
-        var result = await options.CanUseTool!(
+        PermissionResult result = await options.CanUseTool!(
             "Bash",
             JsonSerializer.SerializeToElement(new { }),
             new ToolPermissionContext(),
@@ -156,7 +154,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
         CanUseToolCallback callback = (_, _, _, _) =>
             Task.FromResult<PermissionResult>(new PermissionResultDeny("Denied"));
 
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .CanUseTool(callback)
             .Build();
 
@@ -166,9 +164,9 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void Chaining_ReturnsSameInstance()
     {
-        var builder = Claude.Options();
+        ClaudeAgentOptionsBuilder builder = Claude.Options();
 
-        var result = builder
+        ClaudeAgentOptionsBuilder result = builder
             .SystemPrompt("test")
             .Model("model")
             .MaxTurns(5)
@@ -180,7 +178,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
     [Fact]
     public void CompleteExample_BuildsCorrectOptions()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .SystemPrompt("You are a helpful assistant.")
             .Model("claude-sonnet-4-20250514")
             .MaxTurns(10)

@@ -1,4 +1,3 @@
-using EasyReasy.Claude.AgentSdk.Builders;
 using Xunit;
 
 namespace EasyReasy.Claude.AgentSdk.Tests;
@@ -8,7 +7,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_RegistersAgent()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a.Add("reviewer", "Reviews code", "You are a code reviewer."))
             .Build();
 
@@ -21,7 +20,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_WithTools_SetsTools()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a.Add("reviewer", "Reviews code", "You are a reviewer.", tools: ["Read", "Grep"]))
             .Build();
 
@@ -31,7 +30,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_WithToolsParams_SetsTools()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a.Add("reviewer", "Reviews code", "You are a reviewer.", "Read", "Grep"))
             .Build();
 
@@ -41,7 +40,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_WithModel_SetsModel()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a.Add("fast", "Fast agent", "Be quick.", model: "haiku"))
             .Build();
 
@@ -51,7 +50,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_MultipleAgents_RegistersAll()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a
                 .Add("reviewer", "Reviews code", "Review carefully.")
                 .Add("writer", "Writes code", "Write clean code."))
@@ -65,7 +64,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_SameName_OverwritesPrevious()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a
                 .Add("agent", "First", "First prompt.")
                 .Add("agent", "Second", "Second prompt."))
@@ -79,7 +78,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_WithoutTools_ToolsIsNull()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a.Add("simple", "Simple agent", "Do stuff."))
             .Build();
 
@@ -89,7 +88,7 @@ public sealed class AgentsBuilderTests
     [Fact]
     public void Add_WithEmptyToolsParams_ToolsIsNull()
     {
-        var options = Claude.Options()
+        ClaudeAgentOptions options = Claude.Options()
             .Agents(a => a.Add("simple", "Simple agent", "Do stuff."))
             .Build();
 

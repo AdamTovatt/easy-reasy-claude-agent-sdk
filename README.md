@@ -38,12 +38,12 @@ Build .NET applications that leverage the Claude Code CLI — from simple one-sh
 ```csharp
 using EasyReasy.Claude.AgentSdk;
 
-await foreach (var msg in Claude.QueryAsync("What is 2+2?"))
+await foreach (Message message in Claude.QueryAsync("What is 2+2?"))
 {
-    if (msg is AssistantMessage am)
-        foreach (var block in am.Content)
-            if (block is TextBlock tb)
-                Console.Write(tb.Text);
+    if (message is AssistantMessage assistantMessage)
+        foreach (ContentBlock block in assistantMessage.Content)
+            if (block is TextBlock textBlock)
+                Console.Write(textBlock.Text);
 }
 ```
 
@@ -52,31 +52,31 @@ await foreach (var msg in Claude.QueryAsync("What is 2+2?"))
 ```csharp
 using EasyReasy.Claude.AgentSdk;
 
-await using var client = new ClaudeSDKClient();
+await using ClaudeSDKClient client = new ClaudeSDKClient();
 await client.ConnectAsync();
 
 await client.QueryAsync("Write a Python hello world");
 
-await foreach (var msg in client.ReceiveResponseAsync())
+await foreach (Message message in client.ReceiveResponseAsync())
 {
-    if (msg is AssistantMessage am)
-        foreach (var block in am.Content)
-            if (block is TextBlock tb)
-                Console.Write(tb.Text);
+    if (message is AssistantMessage assistantMessage)
+        foreach (ContentBlock block in assistantMessage.Content)
+            if (block is TextBlock textBlock)
+                Console.Write(textBlock.Text);
 }
 ```
 
 ### With Options
 
 ```csharp
-var options = Claude.Options()
+ClaudeAgentOptions options = Claude.Options()
     .SystemPrompt("You are a helpful coding assistant.")
     .MaxTurns(5)
     .Model("claude-sonnet-4-20250514")
     .AcceptEdits()
     .Build();
 
-await foreach (var msg in Claude.QueryAsync("Explain async/await", options))
+await foreach (Message message in Claude.QueryAsync("Explain async/await", options))
 {
     // handle messages
 }
@@ -123,8 +123,8 @@ await foreach (var msg in Claude.QueryAsync("Explain async/await", options))
 ### Tool Permission Callback
 
 ```csharp
-var options = Claude.Options()
-    .CanUseTool(async (toolName, input, context, ct) =>
+ClaudeAgentOptions options = Claude.Options()
+    .CanUseTool(async (toolName, input, context, cancellationToken) =>
     {
         if (toolName == "Bash" && input.GetProperty("command").GetString()?.Contains("rm") == true)
             return new PermissionResultDeny("Destructive commands not allowed");
@@ -136,10 +136,10 @@ var options = Claude.Options()
 ### Hooks
 
 ```csharp
-var options = Claude.Options()
+ClaudeAgentOptions options = Claude.Options()
     .AllowTools("Bash")
-    .Hooks(h => h
-        .PreToolUse("Bash", (input, toolUseId, ctx, ct) =>
+    .Hooks(hooks => hooks
+        .PreToolUse("Bash", (input, toolUseId, context, cancellationToken) =>
         {
             Console.WriteLine($"[Hook] Bash: {input}");
             return Task.FromResult(new HookOutput { Continue = true });
@@ -153,9 +153,9 @@ var options = Claude.Options()
 using EasyReasy.Claude.AgentSdk;
 using EasyReasy.Claude.AgentSdk.Mcp;
 
-var options = Claude.Options()
-    .McpServers(m => m.AddSdk("calculator", s => s
-        .Tool("add", (double a, double b) => a + b, "Add two numbers")))
+ClaudeAgentOptions options = Claude.Options()
+    .McpServers(servers => servers.AddSdk("calculator", sdk => sdk
+        .Tool("add", (double left, double right) => left + right, "Add two numbers")))
     .AllowAllTools()
     .Build();
 ```
@@ -163,8 +163,8 @@ var options = Claude.Options()
 ### Custom Agents
 
 ```csharp
-var options = Claude.Options()
-    .Agents(a => a
+ClaudeAgentOptions options = Claude.Options()
+    .Agents(agents => agents
         .Add("reviewer", "Reviews code", "You are a code reviewer.", "Read", "Grep")
         .Add("writer", "Writes code", "You are a clean coder.", tools: ["Read", "Write"]))
     .Build();
@@ -173,12 +173,12 @@ var options = Claude.Options()
 ### Sandbox Configuration
 
 ```csharp
-var options = Claude.Options()
-    .Sandbox(s => s
+ClaudeAgentOptions options = Claude.Options()
+    .Sandbox(sandbox => sandbox
         .Enable()
         .AutoAllowBash()
         .ExcludeCommands("rm", "sudo")
-        .Network(n => n.AllowLocalBinding()))
+        .Network(network => network.AllowLocalBinding()))
     .Build();
 ```
 

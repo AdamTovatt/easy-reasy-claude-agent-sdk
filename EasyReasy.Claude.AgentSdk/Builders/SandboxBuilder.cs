@@ -51,7 +51,7 @@ public sealed class SandboxBuilder
     /// <summary>Configure network settings.</summary>
     public SandboxBuilder Network(Action<NetworkBuilder> configure)
     {
-        var builder = new NetworkBuilder();
+        NetworkBuilder builder = new NetworkBuilder();
         configure(builder);
         _network = builder.Build();
         return this;
@@ -60,7 +60,7 @@ public sealed class SandboxBuilder
     /// <summary>Configure violations to ignore.</summary>
     public SandboxBuilder IgnoreViolations(Action<ViolationsBuilder> configure)
     {
-        var builder = new ViolationsBuilder();
+        ViolationsBuilder builder = new ViolationsBuilder();
         configure(builder);
         _ignoreViolations = builder.Build();
         return this;

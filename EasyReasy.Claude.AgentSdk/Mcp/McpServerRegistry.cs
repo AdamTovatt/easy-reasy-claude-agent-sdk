@@ -1,5 +1,3 @@
-using EasyReasy.Claude.AgentSdk;
-
 namespace EasyReasy.Claude.AgentSdk.Mcp;
 
 /// <summary>
@@ -12,7 +10,7 @@ public sealed class McpServerRegistry : Dictionary<string, object>
     /// </summary>
     public McpServerRegistry AddSdk(string serverName, Action<McpSdkServerBuilder> configure)
     {
-        var builder = new McpSdkServerBuilder(serverName);
+        McpSdkServerBuilder builder = new McpSdkServerBuilder(serverName);
         configure(builder);
         this[serverName] = builder.Build();
         return this;

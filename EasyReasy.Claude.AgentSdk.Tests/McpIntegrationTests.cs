@@ -1,6 +1,5 @@
-using System.Text.Json;
-using EasyReasy.Claude.AgentSdk;
 using EasyReasy.Claude.AgentSdk.Mcp;
+using System.Text.Json;
 using Xunit;
 using FactAttribute = EasyReasy.Claude.AgentSdk.Tests.IntegrationFactAttribute;
 
@@ -18,9 +17,9 @@ public class McpIntegrationTests
     public async Task McpTools_CanBeCalledByClaudeViaClient()
     {
         // Track tool invocations
-        var toolCalls = new List<(string Name, JsonElement Args)>();
+        List<(string Name, JsonElement Args)> toolCalls = new List<(string Name, JsonElement Args)>();
 
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition
@@ -43,9 +42,9 @@ public class McpIntegrationTests
             {
                 toolCalls.Add((name, args.Clone()));
 
-                var a = args.GetProperty("a").GetDouble();
-                var b = args.GetProperty("b").GetDouble();
-                var result = a + b;
+                double a = args.GetProperty("a").GetDouble();
+                double b = args.GetProperty("b").GetDouble();
+                double result = a + b;
 
                 return Task.FromResult(new McpToolResult
                 {
@@ -54,7 +53,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -69,13 +68,13 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("What is 7 + 5? Use the add tool.");
 
         ResultMessage? result = null;
-        await foreach (var message in client.ReceiveResponseAsync())
+        await foreach (Message message in client.ReceiveResponseAsync())
         {
             if (message is ResultMessage rm)
                 result = rm;
@@ -91,9 +90,9 @@ public class McpIntegrationTests
     [Fact]
     public async Task McpTools_MultipleToolsAvailable()
     {
-        var toolCalls = new List<string>();
+        List<string> toolCalls = new List<string>();
 
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition
@@ -130,9 +129,9 @@ public class McpIntegrationTests
             CallTool = (name, args, ct) =>
             {
                 toolCalls.Add(name);
-                var a = args.GetProperty("a").GetDouble();
-                var b = args.GetProperty("b").GetDouble();
-                var result = name == "add" ? a + b : a * b;
+                double a = args.GetProperty("a").GetDouble();
+                double b = args.GetProperty("b").GetDouble();
+                double result = name == "add" ? a + b : a * b;
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = result.ToString() }]
@@ -140,7 +139,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -151,12 +150,12 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("First add 3 and 4, then multiply 5 and 6. Use the tools.");
 
-        await foreach (var message in client.ReceiveResponseAsync())
+        await foreach (Message message in client.ReceiveResponseAsync())
         {
             // Consume all messages
         }
@@ -169,9 +168,9 @@ public class McpIntegrationTests
     [Fact]
     public async Task McpTools_ErrorResultHandledCorrectly()
     {
-        var errorReturned = false;
+        bool errorReturned = false;
 
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition
@@ -192,7 +191,7 @@ public class McpIntegrationTests
             ]),
             CallTool = (name, args, ct) =>
             {
-                var b = args.GetProperty("b").GetDouble();
+                double b = args.GetProperty("b").GetDouble();
                 if (b == 0)
                 {
                     errorReturned = true;
@@ -202,7 +201,7 @@ public class McpIntegrationTests
                         IsError = true
                     });
                 }
-                var a = args.GetProperty("a").GetDouble();
+                double a = args.GetProperty("a").GetDouble();
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = (a / b).ToString() }]
@@ -210,7 +209,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -221,12 +220,12 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Divide 10 by 0 using the divide tool.");
 
-        await foreach (var message in client.ReceiveResponseAsync())
+        await foreach (Message message in client.ReceiveResponseAsync())
         {
             // Consume all messages
         }
@@ -241,9 +240,9 @@ public class McpIntegrationTests
     [Fact]
     public async Task McpPrompts_CanBeListedAndRetrieved()
     {
-        var promptsListed = false;
+        bool promptsListed = false;
 
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListPrompts = ct =>
             {
@@ -261,7 +260,7 @@ public class McpIntegrationTests
             },
             GetPrompt = (name, args, ct) =>
             {
-                var userName = args?.GetValueOrDefault("name") ?? "World";
+                string userName = args?.GetValueOrDefault("name") ?? "World";
                 return Task.FromResult(new McpPromptResult
                 {
                     Description = "A friendly greeting",
@@ -276,7 +275,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -286,13 +285,13 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         // Query that might trigger prompt listing
         await client.QueryAsync("List available prompts from the MCP server.");
 
-        await foreach (var message in client.ReceiveResponseAsync())
+        await foreach (Message message in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -309,9 +308,9 @@ public class McpIntegrationTests
     [Fact]
     public async Task McpResources_CanBeListedAndRead()
     {
-        var resourcesListed = false;
+        bool resourcesListed = false;
 
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListResources = ct =>
             {
@@ -342,7 +341,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -352,12 +351,12 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("What resources are available from the MCP server?");
 
-        await foreach (var message in client.ReceiveResponseAsync())
+        await foreach (Message message in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -373,10 +372,10 @@ public class McpIntegrationTests
     [Fact]
     public async Task McpServers_MultipleServersCanBeRegistered()
     {
-        var calcToolCalled = false;
-        var textToolCalled = false;
+        bool calcToolCalled = false;
+        bool textToolCalled = false;
 
-        var calcHandlers = new McpServerHandlers
+        McpServerHandlers calcHandlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition
@@ -394,8 +393,8 @@ public class McpIntegrationTests
             CallTool = (name, args, ct) =>
             {
                 calcToolCalled = true;
-                var a = args.GetProperty("a").GetDouble();
-                var b = args.GetProperty("b").GetDouble();
+                double a = args.GetProperty("a").GetDouble();
+                double b = args.GetProperty("b").GetDouble();
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = (a + b).ToString() }]
@@ -403,7 +402,7 @@ public class McpIntegrationTests
             }
         };
 
-        var textHandlers = new McpServerHandlers
+        McpServerHandlers textHandlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition
@@ -421,7 +420,7 @@ public class McpIntegrationTests
             CallTool = (name, args, ct) =>
             {
                 textToolCalled = true;
-                var text = args.GetProperty("text").GetString() ?? "";
+                string text = args.GetProperty("text").GetString() ?? "";
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = text.ToUpperInvariant() }]
@@ -429,7 +428,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -441,12 +440,12 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await using var client = new ClaudeSDKClient(options);
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
         await client.ConnectAsync();
 
         await client.QueryAsync("Add 2 and 3, then convert the word 'hello' to uppercase. Use the tools.");
 
-        await foreach (var message in client.ReceiveResponseAsync())
+        await foreach (Message message in client.ReceiveResponseAsync())
         {
             // Consume messages
         }
@@ -462,9 +461,9 @@ public class McpIntegrationTests
     [Fact]
     public async Task McpTools_WorkWithStaticQueryAsync()
     {
-        var toolCalled = false;
+        bool toolCalled = false;
 
-        var handlers = new McpServerHandlers
+        McpServerHandlers handlers = new McpServerHandlers
         {
             ListTools = ct => Task.FromResult<IReadOnlyList<McpToolDefinition>>([
                 new McpToolDefinition
@@ -482,7 +481,7 @@ public class McpIntegrationTests
             CallTool = (name, args, ct) =>
             {
                 toolCalled = true;
-                var message = args.GetProperty("message").GetString() ?? "";
+                string message = args.GetProperty("message").GetString() ?? "";
                 return Task.FromResult(new McpToolResult
                 {
                     Content = [new McpContent { Type = "text", Text = $"Echo: {message}" }]
@@ -490,7 +489,7 @@ public class McpIntegrationTests
             }
         };
 
-        var options = new ClaudeAgentOptions
+        ClaudeAgentOptions options = new ClaudeAgentOptions
         {
             McpServers = new Dictionary<string, object>
             {
@@ -501,7 +500,7 @@ public class McpIntegrationTests
             CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
         };
 
-        await foreach (var message in Claude.QueryAsync("Use the echo tool to say 'Hello World'", options))
+        await foreach (Message message in Claude.QueryAsync("Use the echo tool to say 'Hello World'", options))
         {
             // Consume messages
         }

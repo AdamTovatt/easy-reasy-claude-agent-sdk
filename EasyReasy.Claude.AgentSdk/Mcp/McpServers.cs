@@ -1,5 +1,3 @@
-using EasyReasy.Claude.AgentSdk;
-
 namespace EasyReasy.Claude.AgentSdk.Mcp;
 
 /// <summary>

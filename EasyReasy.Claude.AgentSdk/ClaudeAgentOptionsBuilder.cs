@@ -1,6 +1,6 @@
-using System.Text.Json;
 using EasyReasy.Claude.AgentSdk.Builders;
 using EasyReasy.Claude.AgentSdk.Mcp;
+using System.Text.Json;
 
 namespace EasyReasy.Claude.AgentSdk;
 
@@ -149,7 +149,7 @@ public sealed class ClaudeAgentOptionsBuilder
     /// <summary>Set multiple environment variables.</summary>
     public ClaudeAgentOptionsBuilder Env(IEnumerable<KeyValuePair<string, string>> variables)
     {
-        foreach (var (key, value) in variables)
+        foreach ((string? key, string? value) in variables)
             _env[key] = value;
         return this;
     }
@@ -297,7 +297,7 @@ public sealed class ClaudeAgentOptionsBuilder
     /// <summary>Configure hooks using a builder.</summary>
     public ClaudeAgentOptionsBuilder Hooks(Action<HooksBuilder> configure)
     {
-        var builder = new HooksBuilder();
+        HooksBuilder builder = new HooksBuilder();
         configure(builder);
         _hooks = builder.Build();
         return this;
@@ -306,7 +306,7 @@ public sealed class ClaudeAgentOptionsBuilder
     /// <summary>Configure agents using a builder.</summary>
     public ClaudeAgentOptionsBuilder Agents(Action<AgentsBuilder> configure)
     {
-        var builder = new AgentsBuilder();
+        AgentsBuilder builder = new AgentsBuilder();
         configure(builder);
         _agents = builder.Build();
         return this;
@@ -315,7 +315,7 @@ public sealed class ClaudeAgentOptionsBuilder
     /// <summary>Configure MCP servers using a builder.</summary>
     public ClaudeAgentOptionsBuilder McpServers(Action<McpServerRegistry> configure)
     {
-        var registry = new McpServerRegistry();
+        McpServerRegistry registry = new McpServerRegistry();
         configure(registry);
         _mcpServers = registry;
         return this;
@@ -331,7 +331,7 @@ public sealed class ClaudeAgentOptionsBuilder
     /// <summary>Configure sandbox settings using a builder.</summary>
     public ClaudeAgentOptionsBuilder Sandbox(Action<SandboxBuilder> configure)
     {
-        var builder = new SandboxBuilder();
+        SandboxBuilder builder = new SandboxBuilder();
         configure(builder);
         _sandbox = builder.Build();
         return this;

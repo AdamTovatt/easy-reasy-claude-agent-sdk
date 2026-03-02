@@ -1,8 +1,8 @@
+using EasyReasy.Claude.AgentSdk.Mcp;
+using EasyReasy.Claude.AgentSdk.Transport;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using EasyReasy.Claude.AgentSdk.Mcp;
-using EasyReasy.Claude.AgentSdk.Transport;
 
 namespace EasyReasy.Claude.AgentSdk.Internal;
 
@@ -65,29 +65,29 @@ internal class QueryHandler : IAsyncDisposable
             return _initializationResult;
 
         // Build hooks configuration for initialization
-        var hooksConfig = new Dictionary<string, List<Dictionary<string, object?>>>();
+        Dictionary<string, List<Dictionary<string, object?>>> hooksConfig = new Dictionary<string, List<Dictionary<string, object?>>>();
 
         if (_options.Hooks != null)
         {
-            foreach (var (hookEvent, matchers) in _options.Hooks)
+            foreach ((HookEvent hookEvent, IReadOnlyList<HookMatcher>? matchers) in _options.Hooks)
             {
-                var eventName = hookEvent.ToString();
+                string eventName = hookEvent.ToString();
                 hooksConfig[eventName] = [];
 
-                foreach (var matcher in matchers)
+                foreach (HookMatcher matcher in matchers)
                 {
-                    var callbackIds = new List<string>();
+                    List<string> callbackIds = new List<string>();
                     if (matcher.Hooks != null)
                     {
-                        foreach (var callback in matcher.Hooks)
+                        foreach (HookCallback callback in matcher.Hooks)
                         {
-                            var callbackId = $"hook_{_nextCallbackId++}";
+                            string callbackId = $"hook_{_nextCallbackId++}";
                             _hookCallbacks[callbackId] = callback;
                             callbackIds.Add(callbackId);
                         }
                     }
 
-                    var hookMatcherConfig = new Dictionary<string, object?>
+                    Dictionary<string, object?> hookMatcherConfig = new Dictionary<string, object?>
                     {
                         ["matcher"] = matcher.Matcher,
                         ["hookCallbackIds"] = callbackIds
@@ -101,13 +101,13 @@ internal class QueryHandler : IAsyncDisposable
             }
         }
 
-        var request = new Dictionary<string, object?>
+        Dictionary<string, object?> request = new Dictionary<string, object?>
         {
             ["subtype"] = "initialize",
             ["hooks"] = hooksConfig.Count > 0 ? hooksConfig : null
         };
 
-        var response = await SendControlRequestAsync(request, _initializeTimeout, cancellationToken);
+        JsonElement response = await SendControlRequestAsync(request, _initializeTimeout, cancellationToken);
         _initialized = true;
         _initializationResult = response;
         return response;
@@ -122,15 +122,15 @@ internal class QueryHandler : IAsyncDisposable
     {
         try
         {
-            await foreach (var message in _transport.ReadMessagesAsync(cancellationToken))
+            await foreach (JsonElement message in _transport.ReadMessagesAsync(cancellationToken))
             {
                 if (_closed)
                     break;
 
-                if (!message.TryGetProperty("type", out var typeElement))
+                if (!message.TryGetProperty("type", out JsonElement typeElement))
                     continue;
 
-                var msgType = typeElement.GetString();
+                string? msgType = typeElement.GetString();
 
                 // Route control messages
                 if (msgType == "control_response")
@@ -171,7 +171,7 @@ internal class QueryHandler : IAsyncDisposable
             await _lock.WaitAsync(CancellationToken.None);
             try
             {
-                foreach (var (requestId, tcs) in _pendingRequests)
+                foreach ((string? requestId, TaskCompletionSource<JsonElement>? tcs) in _pendingRequests)
                 {
                     tcs.TrySetException(ex);
                 }
@@ -189,25 +189,25 @@ internal class QueryHandler : IAsyncDisposable
 
     private async Task HandleControlResponseAsync(JsonElement message)
     {
-        if (!message.TryGetProperty("response", out var response))
+        if (!message.TryGetProperty("response", out JsonElement response))
             return;
 
-        if (!response.TryGetProperty("request_id", out var requestIdElement))
+        if (!response.TryGetProperty("request_id", out JsonElement requestIdElement))
             return;
 
-        var requestId = requestIdElement.GetString();
+        string? requestId = requestIdElement.GetString();
         if (requestId == null)
             return;
 
         await _lock.WaitAsync();
         try
         {
-            if (_pendingRequests.TryGetValue(requestId, out var tcs))
+            if (_pendingRequests.TryGetValue(requestId, out TaskCompletionSource<JsonElement>? tcs))
             {
-                if (response.TryGetProperty("subtype", out var subtypeElement) &&
+                if (response.TryGetProperty("subtype", out JsonElement subtypeElement) &&
                     subtypeElement.GetString() == "error")
                 {
-                    var errorMsg = response.TryGetProperty("error", out var e)
+                    string errorMsg = response.TryGetProperty("error", out JsonElement e)
                         ? e.GetString() ?? "Unknown error"
                         : "Unknown error";
                     tcs.TrySetException(new ClaudeSDKException(errorMsg));
@@ -226,12 +226,12 @@ internal class QueryHandler : IAsyncDisposable
 
     private async Task HandleControlRequestAsync(JsonElement message, CancellationToken cancellationToken)
     {
-        if (!message.TryGetProperty("request_id", out var requestIdElement) ||
-            !message.TryGetProperty("request", out var request))
+        if (!message.TryGetProperty("request_id", out JsonElement requestIdElement) ||
+            !message.TryGetProperty("request", out JsonElement request))
             return;
 
-        var requestId = requestIdElement.GetString()!;
-        var subtype = request.GetProperty("subtype").GetString();
+        string requestId = requestIdElement.GetString()!;
+        string? subtype = request.GetProperty("subtype").GetString();
 
         try
         {
@@ -292,18 +292,18 @@ internal class QueryHandler : IAsyncDisposable
         if (_options.CanUseTool == null)
             throw new ClaudeSDKException("canUseTool callback is not provided");
 
-        var toolName = request.GetProperty("tool_name").GetString()!;
-        var input = request.GetProperty("input");
-        var suggestions = request.TryGetProperty("permission_suggestions", out var s)
+        string toolName = request.GetProperty("tool_name").GetString()!;
+        JsonElement input = request.GetProperty("input");
+        List<PermissionUpdate>? suggestions = request.TryGetProperty("permission_suggestions", out JsonElement s)
             ? JsonSerializer.Deserialize<List<PermissionUpdate>>(s.GetRawText())
             : null;
 
-        var context = new ToolPermissionContext(null, suggestions);
-        var result = await _options.CanUseTool(toolName, input, context, cancellationToken);
+        ToolPermissionContext context = new ToolPermissionContext(null, suggestions);
+        PermissionResult result = await _options.CanUseTool(toolName, input, context, cancellationToken);
 
         if (result is PermissionResultAllow allow)
         {
-            var response = new Dictionary<string, object?>
+            Dictionary<string, object?> response = new Dictionary<string, object?>
             {
                 ["behavior"] = "allow",
                 ["updatedInput"] = allow.UpdatedInput.HasValue
@@ -322,7 +322,7 @@ internal class QueryHandler : IAsyncDisposable
         }
         else if (result is PermissionResultDeny deny)
         {
-            var response = new Dictionary<string, object?>
+            Dictionary<string, object?> response = new Dictionary<string, object?>
             {
                 ["behavior"] = "deny",
                 ["message"] = deny.Message
@@ -339,19 +339,19 @@ internal class QueryHandler : IAsyncDisposable
 
     private async Task<object> HandleHookCallbackAsync(JsonElement request, CancellationToken cancellationToken)
     {
-        var callbackId = request.GetProperty("callback_id").GetString()!;
+        string callbackId = request.GetProperty("callback_id").GetString()!;
 
-        if (!_hookCallbacks.TryGetValue(callbackId, out var callback))
+        if (!_hookCallbacks.TryGetValue(callbackId, out HookCallback? callback))
             throw new ClaudeSDKException($"No hook callback found for ID: {callbackId}");
 
-        var input = request.TryGetProperty("input", out var i) ? i : default;
-        var toolUseId = request.TryGetProperty("tool_use_id", out var t) ? t.GetString() : null;
-        var context = new HookContext(null);
+        JsonElement input = request.TryGetProperty("input", out JsonElement i) ? i : default;
+        string? toolUseId = request.TryGetProperty("tool_use_id", out JsonElement t) ? t.GetString() : null;
+        HookContext context = new HookContext(null);
 
-        var output = await callback(input, toolUseId, context, cancellationToken);
+        HookOutput output = await callback(input, toolUseId, context, cancellationToken);
 
         // Convert to dictionary, converting C# property names to CLI expected names
-        var result = new Dictionary<string, object?>();
+        Dictionary<string, object?> result = new Dictionary<string, object?>();
 
         if (output.Continue.HasValue)
             result["continue"] = output.Continue.Value;
@@ -373,10 +373,10 @@ internal class QueryHandler : IAsyncDisposable
 
     private async Task<object> HandleMcpMessageAsync(JsonElement request, CancellationToken cancellationToken)
     {
-        var serverName = request.GetProperty("server_name").GetString()!;
-        var message = request.GetProperty("message");
+        string serverName = request.GetProperty("server_name").GetString()!;
+        JsonElement message = request.GetProperty("message");
 
-        if (!_sdkMcpBridges.TryGetValue(serverName, out var bridge))
+        if (!_sdkMcpBridges.TryGetValue(serverName, out SdkMcpBridge? bridge))
         {
             // Return JSONRPC error for unknown server wrapped in mcp_response
             return new Dictionary<string, object?>
@@ -384,7 +384,7 @@ internal class QueryHandler : IAsyncDisposable
                 ["mcp_response"] = new Dictionary<string, object?>
                 {
                     ["jsonrpc"] = "2.0",
-                    ["id"] = message.TryGetProperty("id", out var id) ? id.Clone() : null,
+                    ["id"] = message.TryGetProperty("id", out JsonElement id) ? id.Clone() : null,
                     ["error"] = new Dictionary<string, object?>
                     {
                         ["code"] = -32601,
@@ -396,7 +396,7 @@ internal class QueryHandler : IAsyncDisposable
 
         try
         {
-            var response = await bridge.SendMessageAsync(message, cancellationToken);
+            JsonElement response = await bridge.SendMessageAsync(message, cancellationToken);
             // Wrap the MCP response as expected by the control protocol
             return new Dictionary<string, object?>
             {
@@ -411,7 +411,7 @@ internal class QueryHandler : IAsyncDisposable
                 ["mcp_response"] = new Dictionary<string, object?>
                 {
                     ["jsonrpc"] = "2.0",
-                    ["id"] = message.TryGetProperty("id", out var id) ? id.Clone() : null,
+                    ["id"] = message.TryGetProperty("id", out JsonElement id) ? id.Clone() : null,
                     ["error"] = new Dictionary<string, object?>
                     {
                         ["code"] = -32603,
@@ -437,8 +437,8 @@ internal class QueryHandler : IAsyncDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        var requestId = $"req_{Interlocked.Increment(ref _requestCounter)}_{Guid.NewGuid():N}";
-        var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        string requestId = $"req_{Interlocked.Increment(ref _requestCounter)}_{Guid.NewGuid():N}";
+        TaskCompletionSource<JsonElement> tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await _lock.WaitAsync(cancellationToken);
         try
@@ -459,7 +459,7 @@ internal class QueryHandler : IAsyncDisposable
 
         await _transport.WriteAsync(JsonSerializer.Serialize(controlRequest) + "\n", cancellationToken);
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeout);
 
         try
@@ -539,7 +539,7 @@ internal class QueryHandler : IAsyncDisposable
         IAsyncEnumerable<Dictionary<string, object?>> stream,
         CancellationToken cancellationToken = default)
     {
-        await foreach (var message in stream.WithCancellation(cancellationToken))
+        await foreach (Dictionary<string, object?>? message in stream.WithCancellation(cancellationToken))
         {
             if (_closed)
                 break;
@@ -548,13 +548,13 @@ internal class QueryHandler : IAsyncDisposable
 
         // If we have SDK MCP servers or hooks, wait for the first result before closing stdin
         // to allow bidirectional control protocol communication (matches Python behavior).
-        var hasHooks = _options.Hooks != null && _options.Hooks.Count > 0;
-        var hasSdkMcpServers = _sdkMcpBridges.Count > 0;
+        bool hasHooks = _options.Hooks != null && _options.Hooks.Count > 0;
+        bool hasSdkMcpServers = _sdkMcpBridges.Count > 0;
         if (hasHooks || hasSdkMcpServers)
         {
             try
             {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 cts.CancelAfter(TimeSpan.FromSeconds(60));
                 await _firstResultEvent.Task.WaitAsync(cts.Token);
             }
@@ -570,7 +570,7 @@ internal class QueryHandler : IAsyncDisposable
     public async IAsyncEnumerable<Message> ReceiveMessagesAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var json in _messageChannel.Reader.ReadAllAsync(cancellationToken))
+        await foreach (JsonElement json in _messageChannel.Reader.ReadAllAsync(cancellationToken))
         {
             yield return MessageParser.Parse(json);
         }
@@ -586,7 +586,7 @@ internal class QueryHandler : IAsyncDisposable
 
         _closed = true;
 
-        var readCts = Interlocked.Exchange(ref _readCts, null);
+        CancellationTokenSource? readCts = Interlocked.Exchange(ref _readCts, null);
         if (readCts != null)
         {
             try
@@ -602,7 +602,7 @@ internal class QueryHandler : IAsyncDisposable
             }
         }
 
-        var readTask = Interlocked.Exchange(ref _readTask, null);
+        Task? readTask = Interlocked.Exchange(ref _readTask, null);
         if (readTask != null)
         {
             try { await readTask; }
@@ -617,7 +617,7 @@ internal class QueryHandler : IAsyncDisposable
         await CloseAsync();
 
         // Dispose SDK MCP bridges
-        foreach (var bridge in _sdkMcpBridges.Values)
+        foreach (SdkMcpBridge bridge in _sdkMcpBridges.Values)
         {
             await bridge.DisposeAsync();
         }
