@@ -161,7 +161,13 @@ public static class Claude
             await printTransport.ConnectAsync(cancellationToken);
 
             await foreach (JsonElement json in printTransport.ReadMessagesAsync(cancellationToken))
-                yield return MessageParser.Parse(json);
+            {
+                Message? parsed = MessageParser.Parse(json);
+                if (parsed != null)
+                {
+                    yield return parsed;
+                }
+            }
 
             yield break;
         }

@@ -13,7 +13,7 @@ internal static class MessageParser
     /// <param name="data">Raw message JSON from CLI output.</param>
     /// <returns>Parsed Message object.</returns>
     /// <exception cref="MessageParseException">If parsing fails or message type is unrecognized.</exception>
-    public static Message Parse(JsonElement data)
+    public static Message? Parse(JsonElement data)
     {
         if (data.ValueKind != JsonValueKind.Object)
         {
@@ -38,7 +38,8 @@ internal static class MessageParser
             "system" => ParseSystemMessage(data),
             "result" => ParseResultMessage(data),
             "stream_event" => ParseStreamEvent(data),
-            _ => throw new MessageParseException($"Unknown message type: {messageType}", data)
+            "rate_limit_event" => ParseRateLimitEvent(data),
+            _ => null
         };
     }
 
@@ -191,6 +192,34 @@ internal static class MessageParser
         catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException)
         {
             throw new MessageParseException($"Missing required field in stream_event message: {ex.Message}", data);
+        }
+    }
+
+    private static RateLimitEvent ParseRateLimitEvent(JsonElement data)
+    {
+        try
+        {
+            JsonElement rateLimitInfo = data.GetProperty("rate_limit_info");
+
+            return new RateLimitEvent
+            {
+                RateLimitInfo = new RateLimitInfo
+                {
+                    Status = rateLimitInfo.GetProperty("status").GetString()!,
+                    ResetsAt = rateLimitInfo.TryGetProperty("resetsAt", out JsonElement resetsAt) && resetsAt.ValueKind == JsonValueKind.Number
+                        ? resetsAt.GetInt64()
+                        : null,
+                    Utilization = rateLimitInfo.TryGetProperty("utilization", out JsonElement utilization) && utilization.ValueKind == JsonValueKind.Number
+                        ? utilization.GetDouble()
+                        : null
+                },
+                Uuid = data.TryGetProperty("uuid", out JsonElement uuid) ? uuid.GetString() : null,
+                SessionId = data.TryGetProperty("session_id", out JsonElement sessionId) ? sessionId.GetString() : null
+            };
+        }
+        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException)
+        {
+            throw new MessageParseException($"Missing required field in rate_limit_event message: {ex.Message}", data);
         }
     }
 }

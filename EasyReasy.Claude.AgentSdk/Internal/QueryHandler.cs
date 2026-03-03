@@ -572,7 +572,11 @@ internal class QueryHandler : IAsyncDisposable
     {
         await foreach (JsonElement json in _messageChannel.Reader.ReadAllAsync(cancellationToken))
         {
-            yield return MessageParser.Parse(json);
+            Message? message = MessageParser.Parse(json);
+            if (message != null)
+            {
+                yield return message;
+            }
         }
     }
 

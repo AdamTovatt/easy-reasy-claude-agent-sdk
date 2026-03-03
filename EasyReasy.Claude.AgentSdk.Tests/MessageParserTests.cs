@@ -19,7 +19,7 @@ public class MessageParserTests
         }
         """);
 
-        Message message = MessageParser.Parse(json);
+        Message? message = MessageParser.Parse(json);
 
         Assert.IsType<UserMessage>(message);
         UserMessage userMessage = (UserMessage)message;
@@ -45,7 +45,7 @@ public class MessageParserTests
         }
         """);
 
-        Message message = MessageParser.Parse(json);
+        Message? message = MessageParser.Parse(json);
 
         Assert.IsType<AssistantMessage>(message);
         AssistantMessage assistantMessage = (AssistantMessage)message;
@@ -76,7 +76,7 @@ public class MessageParserTests
         }
         """);
 
-        Message message = MessageParser.Parse(json);
+        Message? message = MessageParser.Parse(json);
 
         Assert.IsType<AssistantMessage>(message);
         AssistantMessage assistantMessage = (AssistantMessage)message;
@@ -103,7 +103,7 @@ public class MessageParserTests
         }
         """);
 
-        Message message = MessageParser.Parse(json);
+        Message? message = MessageParser.Parse(json);
 
         Assert.IsType<ResultMessage>(message);
         ResultMessage resultMessage = (ResultMessage)message;
@@ -127,7 +127,7 @@ public class MessageParserTests
         }
         """);
 
-        Message message = MessageParser.Parse(json);
+        Message? message = MessageParser.Parse(json);
 
         Assert.IsType<SystemMessage>(message);
         SystemMessage systemMessage = (SystemMessage)message;
@@ -147,7 +147,7 @@ public class MessageParserTests
     }
 
     [Fact]
-    public void Parse_ThrowsOnUnknownType()
+    public void Parse_ReturnsNullOnUnknownType()
     {
         JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
         {
@@ -155,6 +155,8 @@ public class MessageParserTests
         }
         """);
 
-        Assert.Throws<MessageParseException>(() => MessageParser.Parse(json));
+        Message? message = MessageParser.Parse(json);
+
+        Assert.Null(message);
     }
 }

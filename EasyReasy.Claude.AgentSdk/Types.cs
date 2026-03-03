@@ -229,6 +229,7 @@ public record ToolResultBlock(
 [JsonDerivedType(typeof(SystemMessage), "system")]
 [JsonDerivedType(typeof(ResultMessage), "result")]
 [JsonDerivedType(typeof(StreamEvent), "stream_event")]
+[JsonDerivedType(typeof(RateLimitEvent), "rate_limit_event")]
 public abstract record Message;
 
 /// <summary>
@@ -380,6 +381,42 @@ public record StreamEvent : Message
     /// <summary>ID of the parent tool use if this event is for a subagent.</summary>
     [JsonPropertyName("parent_tool_use_id")]
     public string? ParentToolUseId { get; init; }
+}
+
+/// <summary>
+/// Rate limit event indicating current rate limit status.
+/// </summary>
+public record RateLimitEvent : Message
+{
+    /// <summary>Rate limit information.</summary>
+    [JsonPropertyName("rate_limit_info")]
+    public required RateLimitInfo RateLimitInfo { get; init; }
+
+    /// <summary>Unique identifier for this event.</summary>
+    [JsonPropertyName("uuid")]
+    public string? Uuid { get; init; }
+
+    /// <summary>The session identifier.</summary>
+    [JsonPropertyName("session_id")]
+    public string? SessionId { get; init; }
+}
+
+/// <summary>
+/// Rate limit status information.
+/// </summary>
+public record RateLimitInfo
+{
+    /// <summary>Rate limit status: "allowed", "allowed_warning", or "rejected".</summary>
+    [JsonPropertyName("status")]
+    public required string Status { get; init; }
+
+    /// <summary>Unix timestamp when the rate limit resets.</summary>
+    [JsonPropertyName("resetsAt")]
+    public long? ResetsAt { get; init; }
+
+    /// <summary>Current utilization as a decimal (0.0 to 1.0).</summary>
+    [JsonPropertyName("utilization")]
+    public double? Utilization { get; init; }
 }
 
 #endregion
