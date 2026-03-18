@@ -80,7 +80,8 @@ public sealed class McpSdkServerBuilder
     {
         private static readonly JsonSerializerOptions ToolJsonOptions = new()
         {
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals
         };
 
         private readonly Delegate _handler;
