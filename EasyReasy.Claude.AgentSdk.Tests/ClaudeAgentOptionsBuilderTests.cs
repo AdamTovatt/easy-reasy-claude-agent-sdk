@@ -11,6 +11,7 @@ public sealed class ClaudeAgentOptionsBuilderTests
         ClaudeAgentOptions options = Claude.Options().Build();
 
         Assert.Null(options.SystemPrompt);
+        Assert.Null(options.AppendSystemPrompt);
         Assert.Null(options.Model);
         Assert.Empty(options.AllowedTools);
         Assert.Empty(options.DisallowedTools);
@@ -24,6 +25,29 @@ public sealed class ClaudeAgentOptionsBuilderTests
             .Build();
 
         Assert.Equal("You are helpful.", options.SystemPrompt);
+    }
+
+    [Fact]
+    public void AppendSystemPrompt_SetsValue()
+    {
+        ClaudeAgentOptions options = Claude.Options()
+            .AppendSystemPrompt("Extra context here.")
+            .Build();
+
+        Assert.Equal("Extra context here.", options.AppendSystemPrompt);
+        Assert.Null(options.SystemPrompt);
+    }
+
+    [Fact]
+    public void SystemPrompt_And_AppendSystemPrompt_Throws()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            Claude.Options()
+                .SystemPrompt("Replace.")
+                .AppendSystemPrompt("Append.")
+                .Build());
+
+        Assert.Contains("mutually exclusive", exception.Message);
     }
 
     [Fact]

@@ -937,8 +937,11 @@ public class ClaudeAgentOptions
     /// <summary>Additional tools to allow.</summary>
     public IReadOnlyList<string> AllowedTools { get; init; } = [];
 
-    /// <summary>System prompt for the conversation.</summary>
+    /// <summary>System prompt for the conversation. Replaces the default Claude Code system prompt entirely.</summary>
     public string? SystemPrompt { get; init; }
+
+    /// <summary>Text to append to the default Claude Code system prompt. When set, the default prompt is preserved and this text is added after it.</summary>
+    public string? AppendSystemPrompt { get; init; }
 
     /// <summary>MCP server configurations (dict or path). Use <c>McpServers</c> helpers for in-process SDK servers.</summary>
     public object? McpServers { get; init; }

@@ -104,7 +104,8 @@ await foreach (Message message in Claude.QueryAsync("Explain async/await", optio
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `SystemPrompt` | `string?` | Custom system prompt |
+| `SystemPrompt` | `string?` | Replace the default system prompt |
+| `AppendSystemPrompt` | `string?` | Append to the default system prompt |
 | `MaxTurns` | `int?` | Maximum conversation turns |
 | `MaxBudgetUsd` | `decimal?` | Spending limit in USD |
 | `Model` | `string?` | Model to use |

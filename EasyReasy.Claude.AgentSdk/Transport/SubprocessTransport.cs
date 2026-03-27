@@ -222,13 +222,15 @@ public class SubprocessTransport : ITransport
         List<string> cmd = new List<string> { _cliPath, "--output-format", "stream-json", "--verbose" };
 
         // System prompt
-        if (_options.SystemPrompt == null)
-        {
-            cmd.AddRange(["--system-prompt", ""]);
-        }
-        else
+        if (_options.SystemPrompt != null)
         {
             cmd.AddRange(["--system-prompt", _options.SystemPrompt]);
+        }
+
+        // Append system prompt
+        if (_options.AppendSystemPrompt != null)
+        {
+            cmd.AddRange(["--append-system-prompt", _options.AppendSystemPrompt]);
         }
 
         // Tools

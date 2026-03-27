@@ -24,6 +24,7 @@ public sealed class ClaudeAgentOptionsBuilder
     private readonly List<string> _allowedTools = [];
     private readonly List<string> _disallowedTools = [];
     private string? _systemPrompt;
+    private string? _appendSystemPrompt;
     private object? _mcpServers;
     private PermissionMode? _permissionMode;
     private bool _continueConversation;
@@ -55,10 +56,17 @@ public sealed class ClaudeAgentOptionsBuilder
     private JsonElement? _outputFormat;
     private bool _enableFileCheckpointing;
 
-    /// <summary>Set the system prompt.</summary>
+    /// <summary>Set the system prompt. This replaces the default Claude Code system prompt entirely.</summary>
     public ClaudeAgentOptionsBuilder SystemPrompt(string prompt)
     {
         _systemPrompt = prompt;
+        return this;
+    }
+
+    /// <summary>Append text to the default Claude Code system prompt. The default prompt is preserved and this text is added after it.</summary>
+    public ClaudeAgentOptionsBuilder AppendSystemPrompt(string prompt)
+    {
+        _appendSystemPrompt = prompt;
         return this;
     }
 
@@ -340,12 +348,16 @@ public sealed class ClaudeAgentOptionsBuilder
     /// <summary>Build the <see cref="ClaudeAgentOptions"/> instance.</summary>
     public ClaudeAgentOptions Build()
     {
+        if (_systemPrompt != null && _appendSystemPrompt != null)
+            throw new InvalidOperationException("SystemPrompt and AppendSystemPrompt are mutually exclusive. Use SystemPrompt to replace the default prompt, or AppendSystemPrompt to extend it.");
+
         return new ClaudeAgentOptions
         {
             Tools = _tools,
             AllowedTools = _allowedTools.Count > 0 ? _allowedTools : [],
             DisallowedTools = _disallowedTools.Count > 0 ? _disallowedTools : [],
             SystemPrompt = _systemPrompt,
+            AppendSystemPrompt = _appendSystemPrompt,
             McpServers = _mcpServers,
             PermissionMode = _permissionMode,
             ContinueConversation = _continueConversation,
