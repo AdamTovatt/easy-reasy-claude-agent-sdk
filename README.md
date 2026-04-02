@@ -110,9 +110,9 @@ await foreach (Message message in Claude.QueryAsync("Explain async/await", optio
 | `MaxBudgetUsd` | `decimal?` | Spending limit in USD |
 | `Model` | `string?` | Model to use |
 | `FallbackModel` | `string?` | Fallback model |
-| `PermissionMode` | `PermissionMode?` | Default, AcceptEdits, Plan, BypassPermissions |
+| `PermissionMode` | `PermissionMode?` | Default, AcceptEdits, Plan, BypassPermissions (cannot combine BypassPermissions with CanUseTool) |
 | `McpServers` | `object?` | MCP server configurations |
-| `CanUseTool` | `CanUseToolCallback?` | Tool permission callback |
+| `CanUseTool` | `CanUseToolCallback?` | Tool permission callback (cannot combine with BypassPermissions) |
 | `Hooks` | `IReadOnlyDictionary<...>?` | Event hooks |
 | `AllowedTools` | `IReadOnlyList<string>` | Whitelist tools |
 | `DisallowedTools` | `IReadOnlyList<string>` | Blacklist tools |
@@ -122,6 +122,8 @@ await foreach (Message message in Claude.QueryAsync("Explain async/await", optio
 ## Advanced Usage
 
 ### Tool Permission Callback
+
+> **Warning:** `CanUseTool` cannot be combined with `BypassPermissions()`. Bypass mode causes the CLI to auto-allow all tools without consulting the callback, silently making it ineffective. The builder will throw `InvalidOperationException` if both are set.
 
 ```csharp
 ClaudeAgentOptions options = Claude.Options()

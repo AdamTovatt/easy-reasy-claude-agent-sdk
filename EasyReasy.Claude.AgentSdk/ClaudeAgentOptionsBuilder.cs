@@ -183,7 +183,12 @@ public sealed class ClaudeAgentOptionsBuilder
         return this;
     }
 
-    /// <summary>Enable bypass-permissions mode (dangerous).</summary>
+    /// <summary>
+    /// Enable bypass-permissions mode (dangerous). Auto-allows all tool calls without prompting.
+    /// Cannot be combined with <see cref="CanUseTool"/> — bypass mode causes the CLI to skip
+    /// the permission callback entirely, making it ineffective.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown at build time if <see cref="CanUseTool"/> is also set.</exception>
     public ClaudeAgentOptionsBuilder BypassPermissions()
     {
         _permissionMode = AgentSdk.PermissionMode.BypassPermissions;
@@ -288,7 +293,12 @@ public sealed class ClaudeAgentOptionsBuilder
         return this;
     }
 
-    /// <summary>Set the tool permission callback.</summary>
+    /// <summary>
+    /// Set the tool permission callback. Called for each tool invocation to allow or deny usage.
+    /// Cannot be combined with <see cref="BypassPermissions"/> — bypass mode causes the CLI to skip
+    /// this callback entirely, making it ineffective.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown at build time if <see cref="BypassPermissions"/> is also set.</exception>
     public ClaudeAgentOptionsBuilder CanUseTool(CanUseToolCallback callback)
     {
         _canUseTool = callback;
@@ -350,6 +360,9 @@ public sealed class ClaudeAgentOptionsBuilder
     {
         if (_systemPrompt != null && _appendSystemPrompt != null)
             throw new InvalidOperationException("SystemPrompt and AppendSystemPrompt are mutually exclusive. Use SystemPrompt to replace the default prompt, or AppendSystemPrompt to extend it.");
+
+        if (_canUseTool != null && _permissionMode == AgentSdk.PermissionMode.BypassPermissions)
+            throw new InvalidOperationException("CanUseTool cannot be used with BypassPermissions. BypassPermissions causes the CLI to auto-allow all tools without consulting the CanUseTool callback, making it ineffective. Remove BypassPermissions to let the CanUseTool callback control tool permissions.");
 
         return new ClaudeAgentOptions
         {

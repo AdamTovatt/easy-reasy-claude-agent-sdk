@@ -200,6 +200,32 @@ public sealed class ClaudeAgentOptionsBuilderTests
     }
 
     [Fact]
+    public void CanUseTool_WithBypassPermissions_Throws()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            Claude.Options()
+                .CanUseTool((toolName, input, context, ct) =>
+                    Task.FromResult<PermissionResult>(new PermissionResultDeny()))
+                .BypassPermissions()
+                .Build());
+
+        Assert.Contains("CanUseTool cannot be used with BypassPermissions", exception.Message);
+    }
+
+    [Fact]
+    public void BypassPermissions_WithCanUseTool_Throws()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            Claude.Options()
+                .BypassPermissions()
+                .CanUseTool((toolName, input, context, ct) =>
+                    Task.FromResult<PermissionResult>(new PermissionResultDeny()))
+                .Build());
+
+        Assert.Contains("CanUseTool cannot be used with BypassPermissions", exception.Message);
+    }
+
+    [Fact]
     public void CompleteExample_BuildsCorrectOptions()
     {
         ClaudeAgentOptions options = Claude.Options()
