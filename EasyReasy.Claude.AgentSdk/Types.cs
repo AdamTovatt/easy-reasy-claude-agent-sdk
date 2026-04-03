@@ -595,6 +595,10 @@ public record PostToolUseHookInput : BaseHookInput
     /// <summary>Response returned by the tool.</summary>
     [JsonPropertyName("tool_response")]
     public required JsonElement ToolResponse { get; init; }
+
+    /// <summary>Whether the tool execution resulted in an error.</summary>
+    [JsonPropertyName("is_error")]
+    public bool? IsError { get; init; }
 }
 
 /// <summary>
