@@ -6,8 +6,19 @@ namespace EasyReasy.Claude.AgentSdk;
 #region Enums
 
 /// <summary>
+/// Converts enum values to/from camelCase JSON strings.
+/// Used as a [JsonConverter] attribute target since JsonStringEnumConverter
+/// doesn't accept constructor arguments via attributes.
+/// </summary>
+internal class CamelCaseStringEnumConverter<TEnum> : JsonStringEnumConverter<TEnum> where TEnum : struct, Enum
+{
+    public CamelCaseStringEnumConverter() : base(JsonNamingPolicy.CamelCase) { }
+}
+
+/// <summary>
 /// Permission modes for controlling tool execution.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter<PermissionMode>))]
 public enum PermissionMode
 {
     /// <summary>Default permission mode.</summary>
@@ -55,6 +66,7 @@ public enum SettingSource
 /// <summary>
 /// Permission behavior options.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter<PermissionBehavior>))]
 public enum PermissionBehavior
 {
     /// <summary>Allow the operation.</summary>
@@ -68,6 +80,7 @@ public enum PermissionBehavior
 /// <summary>
 /// Permission update destinations.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter<PermissionUpdateDestination>))]
 public enum PermissionUpdateDestination
 {
     /// <summary>Update user-level settings.</summary>
@@ -83,6 +96,7 @@ public enum PermissionUpdateDestination
 /// <summary>
 /// Permission update types.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter<PermissionUpdateType>))]
 public enum PermissionUpdateType
 {
     /// <summary>Add new permission rules.</summary>
