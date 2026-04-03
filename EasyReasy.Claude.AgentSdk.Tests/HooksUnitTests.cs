@@ -253,6 +253,37 @@ public class HooksUnitTests
 
     #endregion
 
+    #region PostToolUseHookInput Deserialization Tests
+
+    [Fact]
+    public void PostToolUseHookInput_DeserializesIsError_WhenTrue()
+    {
+        string json = """{"session_id":"s","transcript_path":"/t","cwd":"/c","tool_name":"Bash","tool_input":{},"tool_response":{},"is_error":true}""";
+        PostToolUseHookInput input = JsonSerializer.Deserialize<PostToolUseHookInput>(json)!;
+
+        Assert.True(input.IsError);
+    }
+
+    [Fact]
+    public void PostToolUseHookInput_DeserializesIsError_WhenFalse()
+    {
+        string json = """{"session_id":"s","transcript_path":"/t","cwd":"/c","tool_name":"Bash","tool_input":{},"tool_response":{},"is_error":false}""";
+        PostToolUseHookInput input = JsonSerializer.Deserialize<PostToolUseHookInput>(json)!;
+
+        Assert.False(input.IsError);
+    }
+
+    [Fact]
+    public void PostToolUseHookInput_IsErrorIsNull_WhenAbsent()
+    {
+        string json = """{"session_id":"s","transcript_path":"/t","cwd":"/c","tool_name":"Bash","tool_input":{},"tool_response":{}}""";
+        PostToolUseHookInput input = JsonSerializer.Deserialize<PostToolUseHookInput>(json)!;
+
+        Assert.Null(input.IsError);
+    }
+
+    #endregion
+
     #region ClaudeAgentOptions Hooks Integration
 
     [Fact]
