@@ -88,6 +88,58 @@ public class MessageParserTests
     }
 
     [Fact]
+    public void Parse_AssistantMessage_ExposesUsageFromMessage()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-opus-4-8",
+                "content": [
+                    { "type": "text", "text": "Hi" }
+                ],
+                "usage": {
+                    "input_tokens": 2161,
+                    "cache_read_input_tokens": 16507,
+                    "cache_creation_input_tokens": 2476,
+                    "output_tokens": 124
+                }
+            }
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.NotNull(assistantMessage.Usage);
+        Assert.Equal(2161, assistantMessage.Usage.Value.GetProperty("input_tokens").GetInt32());
+        Assert.Equal(16507, assistantMessage.Usage.Value.GetProperty("cache_read_input_tokens").GetInt32());
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithoutUsage_UsageIsNull()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    { "type": "text", "text": "Hi" }
+                ]
+            }
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Null(assistantMessage.Usage);
+    }
+
+    [Fact]
     public void Parse_ResultMessage()
     {
         JsonElement json = JsonSerializer.Deserialize<JsonElement>("""

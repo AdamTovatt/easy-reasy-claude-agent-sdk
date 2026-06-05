@@ -313,6 +313,15 @@ public record AssistantMessage : Message
     /// <summary>Error that occurred during message generation.</summary>
     [JsonPropertyName("error")]
     public AssistantMessageError? Error { get; init; }
+
+    /// <summary>
+    /// Token usage for the single API response this message represents. Unlike
+    /// <see cref="ResultMessage.Usage"/>, which is cumulative across every step in a
+    /// turn, this reflects one request — so input + cache-read + cache-creation tokens
+    /// here equal the actual context-window size at this point in the conversation.
+    /// </summary>
+    [JsonPropertyName("usage")]
+    public JsonElement? Usage { get; init; }
 }
 
 /// <summary>

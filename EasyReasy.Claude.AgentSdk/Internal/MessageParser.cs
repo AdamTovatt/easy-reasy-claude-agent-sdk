@@ -124,7 +124,8 @@ internal static class MessageParser
                 ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out JsonElement pid)
                     ? pid.GetString()
                     : null,
-                Error = error
+                Error = error,
+                Usage = message.TryGetProperty("usage", out JsonElement usage) ? usage.Clone() : null
             };
         }
         catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException)
