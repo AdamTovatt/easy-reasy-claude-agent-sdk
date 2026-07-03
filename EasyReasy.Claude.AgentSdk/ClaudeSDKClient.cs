@@ -366,6 +366,23 @@ public class ClaudeSDKClient : IClaudeSDKClient
     }
 
     /// <summary>
+    /// Move in-flight foreground tasks (Bash commands and subagents) to the background.
+    /// </summary>
+    /// <param name="toolUseId">
+    /// When set, backgrounds only the task whose originating tool_use block has this id.
+    /// When null, backgrounds all foreground tasks (the equivalent of pressing Ctrl+B in the terminal).
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the tasks were backgrounded.</returns>
+    public async Task<bool> BackgroundTasksAsync(string? toolUseId = null, CancellationToken cancellationToken = default)
+    {
+        if (_queryHandler == null)
+            throw new CliConnectionException("Not connected. Call ConnectAsync() first.");
+
+        return await _queryHandler.BackgroundTasksAsync(toolUseId, cancellationToken);
+    }
+
+    /// <summary>
     /// Get server initialization info including available commands and output styles.
     /// </summary>
     /// <returns>Dictionary with server info, or null if not in streaming mode.</returns>

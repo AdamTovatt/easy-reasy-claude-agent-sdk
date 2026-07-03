@@ -62,6 +62,13 @@ public interface IClaudeSDKClient : IAsyncDisposable
     Task RewindFilesAsync(string userMessageId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Move in-flight foreground tasks (Bash commands and subagents) to the background.
+    /// When <paramref name="toolUseId"/> is set, backgrounds only the task whose originating
+    /// tool_use block has this id; when null, backgrounds all foreground tasks.
+    /// </summary>
+    Task<bool> BackgroundTasksAsync(string? toolUseId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get server initialization info including available commands and output styles.
     /// </summary>
     JsonElement? GetServerInfo();

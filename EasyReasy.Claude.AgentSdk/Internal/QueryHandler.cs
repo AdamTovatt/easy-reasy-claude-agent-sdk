@@ -537,6 +537,30 @@ internal class QueryHandler : IAsyncDisposable
     }
 
     /// <summary>
+    /// Move in-flight foreground tasks (Bash commands and subagents) to the background.
+    /// </summary>
+    public async Task<bool> BackgroundTasksAsync(string? toolUseId, CancellationToken cancellationToken = default)
+    {
+        object request = toolUseId == null
+            ? new { subtype = "background_tasks" }
+            : new { subtype = "background_tasks", tool_use_id = toolUseId };
+
+        JsonElement result = await SendControlRequestAsync(
+            request,
+            TimeSpan.FromSeconds(60),
+            cancellationToken
+        );
+
+        if (result.TryGetProperty("response", out JsonElement response) &&
+            response.TryGetProperty("backgrounded", out JsonElement backgrounded))
+        {
+            return backgrounded.GetBoolean();
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Stream input messages to transport.
     /// </summary>
     public async Task StreamInputAsync(
