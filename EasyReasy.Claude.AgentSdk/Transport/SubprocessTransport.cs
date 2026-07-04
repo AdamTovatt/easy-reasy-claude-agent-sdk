@@ -15,6 +15,11 @@ public class SubprocessTransport : ITransport
     private const string MinimumClaudeCodeVersion = "2.0.0";
     private static readonly int CmdLengthLimit = OperatingSystem.IsWindows() ? 8000 : 100000;
 
+    // Bounds every wait during teardown — acquiring the stdin write lock and waiting for the
+    // child process to exit — so a stuck or unresponsive CLI (or its children) can never wedge
+    // shutdown indefinitely.
+    private static readonly TimeSpan TeardownGrace = TimeSpan.FromSeconds(2);
+
     private readonly object _prompt;
     private readonly bool _isStreaming;
     private readonly ClaudeAgentOptions _options;
@@ -527,6 +532,11 @@ public class SubprocessTransport : ITransport
         if (_process == null || _stdout == null)
             throw new CliConnectionException("Not connected");
 
+        // Capture local references so this loop is immune to CloseAsync() nulling the
+        // fields concurrently once teardown starts bounding its waits and killing the process.
+        Process process = _process;
+        StreamReader stdout = _stdout;
+
         StringBuilder jsonBuffer = new StringBuilder();
 
         while (!cancellationToken.IsCancellationRequested)
@@ -534,7 +544,7 @@ public class SubprocessTransport : ITransport
             string? line;
             try
             {
-                line = await _stdout.ReadLineAsync(cancellationToken);
+                line = await stdout.ReadLineAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -597,11 +607,11 @@ public class SubprocessTransport : ITransport
         // Check process exit
         try
         {
-            await _process.WaitForExitAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
         }
         catch (OperationCanceledException) { }
 
-        if (_process.ExitCode != 0)
+        if (process.ExitCode != 0)
         {
             // Wait briefly for stderr task to finish collecting output
             if (_stderrTask != null)
@@ -616,7 +626,7 @@ public class SubprocessTransport : ITransport
 
             _exitError = new ProcessException(
                 "Command failed",
-                _process.ExitCode,
+                process.ExitCode,
                 stderrOutput
             );
             throw _exitError;
@@ -691,8 +701,9 @@ public class SubprocessTransport : ITransport
             catch { }
         }
 
-        // Close stdin
-        await _writeLock.WaitAsync();
+        // Close stdin. Bound the lock wait: if a write is wedged on a full pipe (the CLI
+        // stopped draining stdin), the lock could otherwise be held indefinitely.
+        bool writeLockAcquired = await _writeLock.WaitAsync(TeardownGrace);
         try
         {
             _ready = false;
@@ -704,16 +715,27 @@ public class SubprocessTransport : ITransport
         }
         finally
         {
-            _writeLock.Release();
+            if (writeLockAcquired)
+                _writeLock.Release();
         }
 
-        // Terminate process
+        // Terminate the process. Closing stdin above signals the CLI to finish, so give it a
+        // brief grace period to exit (and persist its session) on its own; if it does not,
+        // force-kill the whole process tree. Killing the tree is essential: the Claude CLI is
+        // a Node process that spawns its own children (MCP servers, subagents), and killing
+        // only the direct child orphans those grandchildren, which keep the redirected pipes
+        // open and can block readers waiting on EOF. Every wait is bounded so shutdown cannot
+        // wedge here.
         if (!_process.HasExited)
         {
             try
             {
-                _process.Kill();
-                await _process.WaitForExitAsync();
+                await _process.WaitForExitAsync().WaitAsync(TeardownGrace);
+            }
+            catch (TimeoutException)
+            {
+                try { _process.Kill(entireProcessTree: true); } catch { }
+                try { await _process.WaitForExitAsync().WaitAsync(TeardownGrace); } catch { }
             }
             catch { }
         }

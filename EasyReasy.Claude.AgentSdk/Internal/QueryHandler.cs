@@ -32,6 +32,10 @@ internal class QueryHandler : IAsyncDisposable
     private TaskCompletionSource _firstResultEvent = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JsonElement? _initializationResult;
 
+    // Bounds the wait for the read loop to drain after cancellation so shutdown always
+    // proceeds to close the transport (which kills the process and unblocks the reader).
+    private static readonly TimeSpan ReadDrainGrace = TimeSpan.FromSeconds(2);
+
     public QueryHandler(
         ITransport transport,
         ClaudeAgentOptions options,
@@ -609,7 +613,11 @@ internal class QueryHandler : IAsyncDisposable
         Task? readTask = Interlocked.Exchange(ref _readTask, null);
         if (readTask != null)
         {
-            try { await readTask; }
+            // The read loop is usually parked in a blocking stdout read that platform pipe
+            // I/O may not unblock on cancellation alone. Bound the wait so we always proceed
+            // to close the transport, which kills the process and lets the read loop end on
+            // EOF. Without this bound, shutdown can deadlock here.
+            try { await readTask.WaitAsync(ReadDrainGrace); }
             catch { }
         }
 

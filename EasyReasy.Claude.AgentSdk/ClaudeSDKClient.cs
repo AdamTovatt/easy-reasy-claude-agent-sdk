@@ -71,6 +71,10 @@ public class ClaudeSDKClient : IClaudeSDKClient
     private QueryHandler? _queryHandler;
     private Task? _inputTask;
 
+    // Bounds the wait for the background input-streaming task during teardown so a blocked
+    // stdin write or pending-result wait cannot wedge disconnect/dispose.
+    private static readonly TimeSpan InputDrainGrace = TimeSpan.FromSeconds(2);
+
     /// <summary>
     /// Initialize Claude SDK client.
     /// </summary>
@@ -380,7 +384,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
     {
         if (_inputTask != null)
         {
-            try { await _inputTask; }
+            try { await _inputTask.WaitAsync(InputDrainGrace); }
             catch { }
             _inputTask = null;
         }
@@ -398,7 +402,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
     {
         if (_inputTask != null)
         {
-            try { await _inputTask; }
+            try { await _inputTask.WaitAsync(InputDrainGrace); }
             catch { }
             _inputTask = null;
         }

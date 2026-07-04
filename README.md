@@ -19,7 +19,7 @@ Build .NET applications that leverage the Claude Code CLI — from simple one-sh
 - In-process MCP server support (tools, prompts, resources)
 - Cross-platform: Windows, Linux, macOS
 - Source-generated JSON models for message types
-- Well-tested: 128 tests (123 unit + 5 integration; integration tests are disabled by default)
+- Well-tested: a unit test suite plus integration tests (disabled by default)
 
 ## Prerequisites
 
@@ -203,16 +203,17 @@ dotnet build
 
 ## Status & Parity
 
-- **Current version:** 0.1.0
+- **Version:** See the [NuGet package](https://www.nuget.org/packages/EasyReasy.Claude.AgentSdk)
 - **Status:** Preview (API and behavior may change)
 - **Parity:** Designed to match the Python Claude Agent SDK API, behavior, and ergonomics
-- **Tests:** 128 tests (123 unit + 5 integration; integration tests are disabled by default)
+- **Tests:** A unit test suite plus integration tests (disabled by default)
 
 > **Canonical rule:** The Python `claude-agent-sdk` is the canonical reference. This .NET port tracks its behavior and API.
 
 ### Known Limitations
 
 - `control_cancel_request` is currently ignored (cancellation of in-flight control requests is not implemented yet; matches Python SDK TODO).
+- Teardown (`DisconnectAsync`/`DisposeAsync`) is time-bounded so a hung CLI can never wedge shutdown. If the CLI does not exit within a short grace period after stdin is closed, its process tree is force-killed, which may cut short a slow-persisting session.
 
 ### Running Integration Tests
 
