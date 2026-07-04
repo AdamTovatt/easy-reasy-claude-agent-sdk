@@ -551,8 +551,26 @@ internal class QueryHandler : IAsyncDisposable
             cancellationToken
         );
 
+        return ParseBackgroundedResult(result);
+    }
+
+    /// <summary>
+    /// Extract the <c>backgrounded</c> flag from a successful <c>background_tasks</c> control response.
+    /// </summary>
+    /// <remarks>
+    /// The flag lives at <c>response.response.backgrounded</c>. The <see cref="JsonValueKind"/> guards
+    /// keep this defensive: <see cref="JsonElement.TryGetProperty(string, out JsonElement)"/> throws when
+    /// the inner <c>response</c> is present but not an object (e.g. JSON <c>null</c>), and
+    /// <see cref="JsonElement.GetBoolean"/> throws when the field is not a boolean. When the flag is
+    /// absent or unreadable we return <c>true</c>: the control request already threw on an error subtype
+    /// before reaching here, so a successful response with no explicit flag means the tasks were backgrounded.
+    /// </remarks>
+    internal static bool ParseBackgroundedResult(JsonElement result)
+    {
         if (result.TryGetProperty("response", out JsonElement response) &&
-            response.TryGetProperty("backgrounded", out JsonElement backgrounded))
+            response.ValueKind == JsonValueKind.Object &&
+            response.TryGetProperty("backgrounded", out JsonElement backgrounded) &&
+            (backgrounded.ValueKind == JsonValueKind.True || backgrounded.ValueKind == JsonValueKind.False))
         {
             return backgrounded.GetBoolean();
         }
