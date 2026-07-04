@@ -210,6 +210,10 @@ dotnet build
 
 > **Canonical rule:** The Python `claude-agent-sdk` is the canonical reference. This .NET port tracks its behavior and API.
 
+### Parity Notes
+
+- `BackgroundTasksAsync` (the `background_tasks` control request, moving in-flight foreground tasks to the background — the Ctrl+B equivalent) has no counterpart in the canonical Python `claude-agent-sdk`. It is a .NET-side addition that extends beyond the reference surface.
+
 ### Known Limitations
 
 - `control_cancel_request` is currently ignored (cancellation of in-flight control requests is not implemented yet; matches Python SDK TODO).
