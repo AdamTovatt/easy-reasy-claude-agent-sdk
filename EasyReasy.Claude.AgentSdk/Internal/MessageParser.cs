@@ -101,8 +101,13 @@ internal static class MessageParser
                 contentBlocks.Add(contentBlock);
             }
 
+            // The CLI emits error at the record level, as a sibling of message rather than inside
+            // it, so this reads data and not message. The ValueKind check earns its place twice: a
+            // number or object would throw out of GetString and fail the whole message, and an
+            // explicit null would not throw at all but fall through to Unknown below, reporting an
+            // error on a message that said it had none.
             AssistantMessageError? error = null;
-            if (message.TryGetProperty("error", out JsonElement errorElement) &&
+            if (data.TryGetProperty("error", out JsonElement errorElement) &&
                 errorElement.ValueKind == JsonValueKind.String)
             {
                 string? errorStr = errorElement.GetString();

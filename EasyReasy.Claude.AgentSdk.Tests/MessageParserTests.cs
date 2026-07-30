@@ -211,4 +211,163 @@ public class MessageParserTests
 
         Assert.Null(message);
     }
+
+    /// <summary>
+    /// The CLI emits <c>error</c> at the record level, as a sibling of <c>message</c>, and flags it
+    /// with <c>is_api_error_message</c>. The CLI's transcript files spell that flag
+    /// <c>isApiErrorMessage</c> instead, so a fixture taken from a transcript does not match the
+    /// wire format the SDK reads; see issue #4, which records both spellings and the capture below.
+    /// This record is the stream form, captured with ANTHROPIC_BASE_URL pointed at a server
+    /// returning 529 with an overloaded_error body.
+    /// <para>
+    /// Every key and its ordering is as captured, as are <c>error</c> and
+    /// <c>is_api_error_message</c>. Four values are reconstructed, because the capture elided
+    /// them: the <c>content</c> array, <c>session_id</c>, <c>uuid</c> and <c>timestamp</c>. The
+    /// content text is modelled on the error text the CLI was observed to emit, but it is not
+    /// itself captured, so it evidences only that content still parses alongside a record-level
+    /// error. The <c>&lt;synthetic&gt;</c> model is not one of the four: it is the CLI's own
+    /// literal placeholder for a message it generated instead of a model, captured as-is.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Parse_AssistantMessage_ExposesErrorFromRecord()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {"type":"assistant","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","type":"message","content":[{"type":"text","text":"API Error: Repeated 529 Overloaded"}]},"parent_tool_use_id":null,"session_id":"synthetic-session-id","uuid":"synthetic-uuid","timestamp":"2026-07-30T12:41:07.512Z","error":"server_error","is_api_error_message":true}
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Equal(AssistantMessageError.ServerError, assistantMessage.Error);
+        Assert.Equal("<synthetic>", assistantMessage.Model);
+        TextBlock textBlock = Assert.IsType<TextBlock>(Assert.Single(assistantMessage.Content));
+        Assert.Equal("API Error: Repeated 529 Overloaded", textBlock.Text);
+    }
+
+    /// <summary>
+    /// Every mapped error string, plus the two that fall to
+    /// <see cref="AssistantMessageError.Unknown"/>: an unrecognised value, and the empty string.
+    /// The empty string is a string, so the parser's kind check passes it through to the mapping
+    /// rather than treating it as absent. Mapping it to <c>Unknown</c> is the chosen behaviour and
+    /// is pinned here; no wire record is known to carry it, so the parser does not special-case it.
+    /// </summary>
+    [Theory]
+    [InlineData("rate_limit", AssistantMessageError.RateLimit)]
+    [InlineData("server_error", AssistantMessageError.ServerError)]
+    [InlineData("authentication_failed", AssistantMessageError.AuthenticationFailed)]
+    [InlineData("billing_error", AssistantMessageError.BillingError)]
+    [InlineData("invalid_request", AssistantMessageError.InvalidRequest)]
+    [InlineData("something_new", AssistantMessageError.Unknown)]
+    [InlineData("", AssistantMessageError.Unknown)]
+    public void Parse_AssistantMessage_MapsErrorValue(string errorValue, AssistantMessageError expected)
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>($$"""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "<synthetic>",
+                "content": [
+                    { "type": "text", "text": "API Error" }
+                ]
+            },
+            "error": "{{errorValue}}"
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Equal(expected, assistantMessage.Error);
+    }
+
+    /// <summary>
+    /// An explicit <c>"error": null</c> reports no error, which is a different failure mode from
+    /// the other non-string kinds and the reason the string check is not merely defensive.
+    /// <c>GetString</c> returns null rather than throwing for <see cref="JsonValueKind.Null"/>, so
+    /// an unguarded read falls through to the unmapped-value arm and yields
+    /// <see cref="AssistantMessageError.Unknown"/>. A message stating it had no error would then
+    /// report one, and a caller branching on <c>Error is not null</c> would treat it as failed.
+    /// A wrong signal is worse than a loud one: it is the same defect class as the missing error.
+    /// </summary>
+    [Fact]
+    public void Parse_AssistantMessage_WithExplicitNullError_ErrorIsNull()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    { "type": "text", "text": "Hi" }
+                ]
+            },
+            "error": null
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Null(assistantMessage.Error);
+    }
+
+    /// <summary>
+    /// A record-level <c>error</c> of any other non-string kind leaves
+    /// <see cref="AssistantMessage.Error"/> null rather than failing the message. Unlike the
+    /// explicit-null case above, reading one of these as a string throws out of the parse and
+    /// takes down an otherwise well-formed message.
+    /// </summary>
+    [Theory]
+    [InlineData("429")]
+    [InlineData("true")]
+    [InlineData("{ \"type\": \"overloaded_error\" }")]
+    public void Parse_AssistantMessage_WithNonStringError_ErrorIsNull(string errorLiteral)
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>($$"""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    { "type": "text", "text": "Hi" }
+                ]
+            },
+            "error": {{errorLiteral}}
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Null(assistantMessage.Error);
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithoutError_ErrorIsNull()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Hello!"
+                    }
+                ]
+            }
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Null(assistantMessage.Error);
+    }
 }
