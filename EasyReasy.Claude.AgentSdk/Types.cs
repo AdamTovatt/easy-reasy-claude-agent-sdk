@@ -128,7 +128,7 @@ public enum AssistantMessageError
     InvalidRequest,
     /// <summary>Server error occurred.</summary>
     ServerError,
-    /// <summary>Unknown error.</summary>
+    /// <summary>An error string the CLI reported that this enum has no case for.</summary>
     Unknown
 }
 
@@ -310,7 +310,19 @@ public record AssistantMessage : Message
     [JsonPropertyName("parent_tool_use_id")]
     public string? ParentToolUseId { get; init; }
 
-    /// <summary>Error that occurred during message generation.</summary>
+    /// <summary>
+    /// Error the CLI reported for this message, or <c>null</c> when it reported none. A non-null
+    /// value means the CLI reported a failure for this message, so callers should check it before
+    /// treating <see cref="Content"/> as a model answer.
+    /// <para>
+    /// In the record captured in issue #4, a <see cref="AssistantMessageError.ServerError"/>
+    /// message carried the CLI's own error text in <see cref="Content"/> and a placeholder in
+    /// <see cref="Model"/> rather than a real model name. That substitution is what was captured
+    /// for that one case, not a guarantee this type makes for every value: the remaining values
+    /// are mapped from strings the CLI documents, and what they imply for <see cref="Content"/>
+    /// and <see cref="Model"/> is not established here.
+    /// </para>
+    /// </summary>
     [JsonPropertyName("error")]
     public AssistantMessageError? Error { get; init; }
 
