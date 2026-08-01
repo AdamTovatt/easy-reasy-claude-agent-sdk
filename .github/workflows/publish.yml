@@ -1,0 +1,58 @@
+name: Publish NuGet
+
+# Packing by hand once shipped 1.5.1 with a DLL byte-identical to 1.5.0: the version
+# in the nuspec came from the csproj, but the assembly came from stale bin/ output
+# built before the fix. A tag-triggered job starting from a fresh checkout has no
+# prior build output to reuse, so publishing what was never built is not possible here.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Parse tag
+      id: tag
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Publishing EasyReasy.Claude.AgentSdk version ${VERSION}"
+
+    - name: Verify tag version matches csproj VersionPrefix
+      run: |
+        VERSION="${{ steps.tag.outputs.VERSION }}"
+        # The package version comes from <VersionPrefix> rather than a -p:Version override, so
+        # the csproj is the single place the version is declared. Fail loudly when the tag and
+        # the csproj disagree rather than shipping a version nobody meant to: bump VersionPrefix
+        # to match the tag before releasing.
+        CSPROJ_VERSION=$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' EasyReasy.Claude.AgentSdk/EasyReasy.Claude.AgentSdk.csproj)
+        if [ "${CSPROJ_VERSION}" != "${VERSION}" ]; then
+          echo "Tag version '${VERSION}' does not match VersionPrefix '${CSPROJ_VERSION}'" >&2
+          exit 1
+        fi
+        echo "Version OK: VersionPrefix ${CSPROJ_VERSION} == tag ${VERSION}"
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Test
+      run: dotnet test --no-build --configuration Release
+
+    - name: Pack
+      run: dotnet pack EasyReasy.Claude.AgentSdk --no-build --configuration Release --output ./nupkgs
+
+    - name: Publish to NuGet
+      run: dotnet nuget push ./nupkgs/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
