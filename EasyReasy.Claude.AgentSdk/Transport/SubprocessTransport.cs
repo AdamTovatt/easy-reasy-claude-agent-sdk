@@ -11,7 +11,18 @@ namespace EasyReasy.Claude.AgentSdk.Transport;
 /// </summary>
 public class SubprocessTransport : ITransport
 {
-    private const int DefaultMaxBufferSize = 1024 * 1024; // 1MB
+    // A guard against a malformed stream growing the buffer without bound, not a statement about how
+    // large a legitimate message is. The CLI routinely emits multi-megabyte lines: a tool result carrying
+    // an image repeats the base64 twice in one line (once as the API content block's source.data, once as
+    // tool_use_result.file.base64), so a 400 KB screenshot arrives as ~1.1 MB. At 1 MB that threw, which
+    // killed the read loop — and with it the only thing answering the CLI's hook callbacks — for an image
+    // small enough that nobody would suspect its size.
+    //
+    // Where it sits is bounded from above by what the host can afford to allocate at once rather than by
+    // any message anyone expects: the buffer, the line and the string handed to the parser are all UTF-16
+    // copies, so reading a line costs several times its length at peak. 32 MB leaves roughly thirty times
+    // the headroom over the largest line observed in practice while keeping that peak survivable.
+    private const int DefaultMaxBufferSize = 32 * 1024 * 1024; // 32MB
     private const string MinimumClaudeCodeVersion = "2.0.0";
     private static readonly int CmdLengthLimit = OperatingSystem.IsWindows() ? 8000 : 100000;
 
