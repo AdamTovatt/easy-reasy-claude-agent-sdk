@@ -124,6 +124,15 @@ internal class QueryHandler : IAsyncDisposable
 
     private async Task ReadMessagesLoopAsync(CancellationToken cancellationToken)
     {
+        // What killed the loop, if anything, so the message stream can be completed *with* it. This loop
+        // is the only thing routing control responses back to the CLI, so once it is gone the CLI blocks
+        // forever on its next hook callback and the session is unrecoverable. Completing the channel
+        // cleanly made that indistinguishable from a stream that ended normally: the consumer saw an
+        // empty enumeration, reported the turn finished, and went on writing to a process nobody was
+        // reading. Faulting the channel is what lets a consumer tell the two apart — and tearing the
+        // transport down is then the consumer's to do, since it owns the client's lifetime.
+        Exception? readFailure = null;
+
         try
         {
             await foreach (JsonElement message in _transport.ReadMessagesAsync(cancellationToken))
@@ -171,6 +180,8 @@ internal class QueryHandler : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            readFailure = ex;
+
             // Signal all pending control requests
             await _lock.WaitAsync(CancellationToken.None);
             try
@@ -187,7 +198,8 @@ internal class QueryHandler : IAsyncDisposable
         }
         finally
         {
-            _messageChannel.Writer.Complete();
+            // Null completes the channel cleanly, which is still what a cancelled shutdown wants.
+            _messageChannel.Writer.Complete(readFailure);
         }
     }
 
