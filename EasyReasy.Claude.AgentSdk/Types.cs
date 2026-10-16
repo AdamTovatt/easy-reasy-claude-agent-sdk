@@ -255,7 +255,13 @@ public record UserMessage : Message
     [JsonPropertyName("content")]
     public required JsonElement Content { get; init; }
 
-    /// <summary>Unique identifier for this message.</summary>
+    /// <summary>
+    /// The <c>uuid</c> the CLI wrote on this record, or <c>null</c> when the record carries none or
+    /// carries a value that is not a string. It equals the <c>uuid</c> of this message's line in the
+    /// session <c>.jsonl</c> transcript. The CLI streams back a user message sent on stdin only when
+    /// it runs with <c>--replay-user-messages</c> (passed through
+    /// <see cref="ClaudeAgentOptions.ExtraArgs"/>); tool-result user messages stream either way.
+    /// </summary>
     [JsonPropertyName("uuid")]
     public string? Uuid { get; init; }
 
@@ -309,6 +315,16 @@ public record AssistantMessage : Message
     /// <summary>ID of the parent tool use if this message is a follow-up.</summary>
     [JsonPropertyName("parent_tool_use_id")]
     public string? ParentToolUseId { get; init; }
+
+    /// <summary>
+    /// The <c>uuid</c> the CLI wrote on this record, or <c>null</c> when the record carries none or
+    /// carries a value that is not a string. It equals the <c>uuid</c> of this message's line in the
+    /// session <c>.jsonl</c> transcript, so it identifies the point to fork a session at. That holds
+    /// for main-thread messages (<see cref="ParentToolUseId"/> null); a subagent's messages are
+    /// written to a separate transcript, so their uuids match no line in the main one.
+    /// </summary>
+    [JsonPropertyName("uuid")]
+    public string? Uuid { get; init; }
 
     /// <summary>
     /// Error the CLI reported for this message, or <c>null</c> when it reported none. A non-null
@@ -394,6 +410,16 @@ public record ResultMessage : Message
     /// <summary>Structured output if requested.</summary>
     [JsonPropertyName("structured_output")]
     public JsonElement? StructuredOutput { get; init; }
+
+    /// <summary>
+    /// The <c>uuid</c> the CLI wrote on this record, or <c>null</c> when the record carries none or
+    /// carries a value that is not a string. The CLI writes no line for a result record in the
+    /// session <c>.jsonl</c> transcript, so this uuid matches no transcript record and cannot be
+    /// used as a fork point; use the <see cref="AssistantMessage.Uuid"/> of the turn's last
+    /// <see cref="AssistantMessage"/> whose <see cref="AssistantMessage.ParentToolUseId"/> is null.
+    /// </summary>
+    [JsonPropertyName("uuid")]
+    public string? Uuid { get; init; }
 }
 
 /// <summary>
@@ -427,7 +453,12 @@ public record RateLimitEvent : Message
     [JsonPropertyName("rate_limit_info")]
     public required RateLimitInfo RateLimitInfo { get; init; }
 
-    /// <summary>Unique identifier for this event.</summary>
+    /// <summary>
+    /// The <c>uuid</c> the CLI wrote on this record, or <c>null</c> when the record carries none or
+    /// carries a value that is not a string. The CLI writes no line for a rate-limit event in the
+    /// session <c>.jsonl</c> transcript, so this uuid matches no transcript record and cannot be
+    /// used as a fork point.
+    /// </summary>
     [JsonPropertyName("uuid")]
     public string? Uuid { get; init; }
 

@@ -43,6 +43,18 @@ internal static class MessageParser
         };
     }
 
+    /// <summary>
+    /// Reads the record-level <c>uuid</c>, or <c>null</c> when it is missing or not a string. The
+    /// field is optional metadata, so the ValueKind check keeps a malformed value from throwing out
+    /// of GetString and failing the whole message.
+    /// </summary>
+    private static string? ReadUuid(JsonElement data)
+    {
+        return data.TryGetProperty("uuid", out JsonElement uuid) && uuid.ValueKind == JsonValueKind.String
+            ? uuid.GetString()
+            : null;
+    }
+
     private static UserMessage ParseUserMessage(JsonElement data)
     {
         try
@@ -53,7 +65,7 @@ internal static class MessageParser
             return new UserMessage
             {
                 Content = content.Clone(),
-                Uuid = data.TryGetProperty("uuid", out JsonElement uuid) ? uuid.GetString() : null,
+                Uuid = ReadUuid(data),
                 ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out JsonElement pid)
                     ? pid.GetString()
                     : null
@@ -129,6 +141,7 @@ internal static class MessageParser
                 ParentToolUseId = data.TryGetProperty("parent_tool_use_id", out JsonElement pid)
                     ? pid.GetString()
                     : null,
+                Uuid = ReadUuid(data),
                 Error = error,
                 Usage = message.TryGetProperty("usage", out JsonElement usage) ? usage.Clone() : null
             };
@@ -172,7 +185,8 @@ internal static class MessageParser
                     : null,
                 Usage = data.TryGetProperty("usage", out JsonElement usage) ? usage.Clone() : null,
                 Result = data.TryGetProperty("result", out JsonElement result) ? result.GetString() : null,
-                StructuredOutput = data.TryGetProperty("structured_output", out JsonElement so) ? so.Clone() : null
+                StructuredOutput = data.TryGetProperty("structured_output", out JsonElement so) ? so.Clone() : null,
+                Uuid = ReadUuid(data)
             };
         }
         catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException)
@@ -219,7 +233,7 @@ internal static class MessageParser
                         ? utilization.GetDouble()
                         : null
                 },
-                Uuid = data.TryGetProperty("uuid", out JsonElement uuid) ? uuid.GetString() : null,
+                Uuid = ReadUuid(data),
                 SessionId = data.TryGetProperty("session_id", out JsonElement sessionId) ? sessionId.GetString() : null
             };
         }
