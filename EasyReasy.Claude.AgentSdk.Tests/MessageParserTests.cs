@@ -370,4 +370,174 @@ public class MessageParserTests
         AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
         Assert.Null(assistantMessage.Error);
     }
+
+    // The records below are trimmed from a real CLI stream (CLI 2.1.300, run with
+    // --replay-user-messages so the user message is echoed): usage, timestamps and other fields
+    // the parser does not read are dropped; the remaining keys, their order and values are as captured.
+
+    private const string CapturedSessionId = "1e0a44cf-c7c1-4445-bd9b-0f3defcc6046";
+    private const string CapturedUserUuid = "244e12ee-c9bf-45e0-9d40-305db3ec4b23";
+    private const string CapturedAssistantUuid = "9c459827-cabe-42d1-9d82-35954215ce1a";
+    private const string CapturedResultUuid = "b17d4379-e332-4f74-9e26-f8c1c59bf6c2";
+    private const string CapturedRateLimitEventUuid = "4419d1b1-1266-463f-99df-eaa7142af0cc";
+
+    private const string CapturedUserRecord = $$"""
+        {"type":"user","message":{"role":"user","content":"Reply with the single word: pong"},"session_id":"{{CapturedSessionId}}","parent_tool_use_id":null,"uuid":"{{CapturedUserUuid}}","isReplay":true}
+        """;
+
+    private const string CapturedAssistantRecord = $$"""
+        {"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011Cg5Hdn29nWfqt4ekQjafN","type":"message","role":"assistant","content":[{"type":"text","text":"pong"}],"stop_reason":null},"parent_tool_use_id":null,"session_id":"{{CapturedSessionId}}","uuid":"{{CapturedAssistantUuid}}"}
+        """;
+
+    private const string CapturedResultRecord = $$"""
+        {"duration_api_ms":2764,"stop_reason":"end_turn","session_id":"{{CapturedSessionId}}","total_cost_usd":0.00165288,"terminal_reason":"completed","is_error":false,"num_turns":1,"subtype":"success","result":"pong","type":"result","duration_ms":2210,"uuid":"{{CapturedResultUuid}}"}
+        """;
+
+    private const string CapturedRateLimitEventRecord = $$"""
+        {"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1792143000,"rateLimitType":"five_hour"},"uuid":"{{CapturedRateLimitEventUuid}}","session_id":"{{CapturedSessionId}}"}
+        """;
+
+    /// <summary>
+    /// Literals for a record-level <c>uuid</c> that is not a string. Each must leave the uuid null
+    /// without failing the message; all but <c>null</c> throw out of an unguarded GetString.
+    /// </summary>
+    public static TheoryData<string> NonStringUuidLiterals => new TheoryData<string>
+    {
+        "null",
+        "42",
+        "true",
+        "{ \"id\": \"x\" }",
+        "[\"x\"]"
+    };
+
+    private static Message? ParseRecord(string record) => MessageParser.Parse(JsonDocument.Parse(record).RootElement);
+
+    /// <summary>
+    /// Returns the captured record with its uuid removed (<paramref name="uuidLiteral"/> null) or
+    /// replaced by the given raw JSON literal.
+    /// </summary>
+    private static string WithUuid(string capturedRecord, string? uuidLiteral)
+    {
+        Dictionary<string, JsonElement> fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(capturedRecord)!;
+        fields.Remove("uuid");
+        if (uuidLiteral != null)
+            fields["uuid"] = JsonSerializer.Deserialize<JsonElement>(uuidLiteral);
+        return JsonSerializer.Serialize(fields);
+    }
+
+    [Fact]
+    public void Parse_UserMessage_WithUuid_ExposesUuid()
+    {
+        Message? message = ParseRecord(CapturedUserRecord);
+
+        UserMessage userMessage = Assert.IsType<UserMessage>(message);
+        Assert.Equal(CapturedUserUuid, userMessage.Uuid);
+    }
+
+    [Fact]
+    public void Parse_UserMessage_WithoutUuid_UuidIsNull()
+    {
+        Message? message = ParseRecord(WithUuid(CapturedUserRecord, null));
+
+        UserMessage userMessage = Assert.IsType<UserMessage>(message);
+        Assert.Null(userMessage.Uuid);
+    }
+
+    [Theory]
+    [MemberData(nameof(NonStringUuidLiterals))]
+    public void Parse_UserMessage_WithNonStringUuid_UuidIsNull(string uuidLiteral)
+    {
+        Message? message = ParseRecord(WithUuid(CapturedUserRecord, uuidLiteral));
+
+        UserMessage userMessage = Assert.IsType<UserMessage>(message);
+        Assert.Null(userMessage.Uuid);
+        Assert.Equal("Reply with the single word: pong", userMessage.GetTextContent());
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithUuid_ExposesUuid()
+    {
+        Message? message = ParseRecord(CapturedAssistantRecord);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Equal(CapturedAssistantUuid, assistantMessage.Uuid);
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithoutUuid_UuidIsNull()
+    {
+        Message? message = ParseRecord(WithUuid(CapturedAssistantRecord, null));
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Null(assistantMessage.Uuid);
+    }
+
+    [Theory]
+    [MemberData(nameof(NonStringUuidLiterals))]
+    public void Parse_AssistantMessage_WithNonStringUuid_UuidIsNull(string uuidLiteral)
+    {
+        Message? message = ParseRecord(WithUuid(CapturedAssistantRecord, uuidLiteral));
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Null(assistantMessage.Uuid);
+        Assert.Equal("claude-haiku-5-5", assistantMessage.Model);
+    }
+
+    [Fact]
+    public void Parse_ResultMessage_WithUuid_ExposesUuid()
+    {
+        Message? message = ParseRecord(CapturedResultRecord);
+
+        ResultMessage resultMessage = Assert.IsType<ResultMessage>(message);
+        Assert.Equal(CapturedResultUuid, resultMessage.Uuid);
+    }
+
+    [Fact]
+    public void Parse_ResultMessage_WithoutUuid_UuidIsNull()
+    {
+        Message? message = ParseRecord(WithUuid(CapturedResultRecord, null));
+
+        ResultMessage resultMessage = Assert.IsType<ResultMessage>(message);
+        Assert.Null(resultMessage.Uuid);
+    }
+
+    [Theory]
+    [MemberData(nameof(NonStringUuidLiterals))]
+    public void Parse_ResultMessage_WithNonStringUuid_UuidIsNull(string uuidLiteral)
+    {
+        Message? message = ParseRecord(WithUuid(CapturedResultRecord, uuidLiteral));
+
+        ResultMessage resultMessage = Assert.IsType<ResultMessage>(message);
+        Assert.Null(resultMessage.Uuid);
+        Assert.Equal(CapturedSessionId, resultMessage.SessionId);
+    }
+
+    [Fact]
+    public void Parse_RateLimitEvent_WithUuid_ExposesUuid()
+    {
+        Message? message = ParseRecord(CapturedRateLimitEventRecord);
+
+        RateLimitEvent rateLimitEvent = Assert.IsType<RateLimitEvent>(message);
+        Assert.Equal(CapturedRateLimitEventUuid, rateLimitEvent.Uuid);
+    }
+
+    [Fact]
+    public void Parse_RateLimitEvent_WithoutUuid_UuidIsNull()
+    {
+        Message? message = ParseRecord(WithUuid(CapturedRateLimitEventRecord, null));
+
+        RateLimitEvent rateLimitEvent = Assert.IsType<RateLimitEvent>(message);
+        Assert.Null(rateLimitEvent.Uuid);
+    }
+
+    [Theory]
+    [MemberData(nameof(NonStringUuidLiterals))]
+    public void Parse_RateLimitEvent_WithNonStringUuid_UuidIsNull(string uuidLiteral)
+    {
+        Message? message = ParseRecord(WithUuid(CapturedRateLimitEventRecord, uuidLiteral));
+
+        RateLimitEvent rateLimitEvent = Assert.IsType<RateLimitEvent>(message);
+        Assert.Null(rateLimitEvent.Uuid);
+        Assert.Equal("allowed", rateLimitEvent.RateLimitInfo.Status);
+    }
 }
