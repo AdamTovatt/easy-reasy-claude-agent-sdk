@@ -97,6 +97,8 @@ await foreach (Message message in Claude.QueryAsync("Explain async/await", optio
 - `ThinkingBlock` - Extended thinking (with signature)
 - `ToolUseBlock` - Tool invocation
 - `ToolResultBlock` - Tool output
+- `FallbackBlock` - The requested model refused and another answered (`FromModel`, `ToModel`)
+- `UnknownContentBlock` - A block type this SDK does not know yet, with its `Type` and `Raw` JSON (to serialize it, serialize `Raw`, not the block)
 
 ### Configuration
 
