@@ -1,3 +1,4 @@
+using EasyReasy.Claude.AgentSdk.Internal;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -195,6 +196,7 @@ internal static class EnumHelpers
 [JsonDerivedType(typeof(ThinkingBlock), "thinking")]
 [JsonDerivedType(typeof(ToolUseBlock), "tool_use")]
 [JsonDerivedType(typeof(ToolResultBlock), "tool_result")]
+[JsonDerivedType(typeof(FallbackBlock), "fallback")]
 public abstract record ContentBlock;
 
 /// <summary>
@@ -228,6 +230,44 @@ public record ToolResultBlock(
     [property: JsonPropertyName("tool_use_id")] string ToolUseId,
     [property: JsonPropertyName("content")] JsonElement? Content = null,
     [property: JsonPropertyName("is_error")] bool? IsError = null
+) : ContentBlock;
+
+/// <summary>
+/// Marks a refusal fallback: the requested model refused, and the CLI answered with another model.
+/// The CLI writes it as <c>{"type":"fallback","from":{"model":..},"to":{"model":..}}</c>.
+/// </summary>
+public record FallbackBlock(
+    [property: JsonIgnore] string FromModel,
+    [property: JsonIgnore] string ToModel
+) : ContentBlock
+{
+    // The flat properties are the API; these serialize the block in the CLI's nested shape, as
+    // every other block type serializes under the CLI's own field names.
+    [JsonInclude]
+    [JsonPropertyName("from")]
+    internal FallbackModel From => new FallbackModel(FromModel);
+
+    [JsonInclude]
+    [JsonPropertyName("to")]
+    internal FallbackModel To => new FallbackModel(ToModel);
+}
+
+/// <summary>
+/// One side of a <see cref="FallbackBlock"/> as the CLI writes it: <c>{"model":..}</c>.
+/// </summary>
+internal record FallbackModel(
+    [property: JsonPropertyName("model")] string Model
+);
+
+/// <summary>
+/// A content block of a type this SDK does not know yet. It carries the block's <c>type</c> and its
+/// raw JSON so a consumer can still read it, instead of the whole message failing to parse.
+/// It has no type discriminator registered on <see cref="ContentBlock"/>, so it cannot be
+/// serialized as one; serialize <see cref="Raw"/> to get the block back as the CLI wrote it.
+/// </summary>
+public record UnknownContentBlock(
+    string Type,
+    JsonElement Raw
 ) : ContentBlock;
 
 #endregion
@@ -280,8 +320,14 @@ public record UserMessage : Message
     }
 
     /// <summary>
-    /// Gets the content blocks if the content is an array.
+    /// Gets the content blocks if the content is an array. Blocks parse the same way as an
+    /// assistant message's, so a type this SDK does not know becomes an
+    /// <see cref="UnknownContentBlock"/>.
     /// </summary>
+    /// <exception cref="MessageParseException">
+    /// If a block has no string <c>type</c>, or a block of a known type lacks a required field or
+    /// has one of the wrong JSON kind.
+    /// </exception>
     public IReadOnlyList<ContentBlock>? GetContentBlocks()
     {
         if (Content.ValueKind == JsonValueKind.Array)
@@ -289,9 +335,7 @@ public record UserMessage : Message
             List<ContentBlock> blocks = new List<ContentBlock>();
             foreach (JsonElement element in Content.EnumerateArray())
             {
-                ContentBlock? block = JsonSerializer.Deserialize<ContentBlock>(element, ClaudeJsonContext.Default.ContentBlock);
-                if (block != null)
-                    blocks.Add(block);
+                blocks.Add(MessageParser.ParseContentBlock(element));
             }
             return blocks;
         }
@@ -1130,6 +1174,7 @@ public class ClaudeAgentOptions
 [JsonSerializable(typeof(ThinkingBlock))]
 [JsonSerializable(typeof(ToolUseBlock))]
 [JsonSerializable(typeof(ToolResultBlock))]
+[JsonSerializable(typeof(FallbackBlock))]
 [JsonSerializable(typeof(HookOutput))]
 [JsonSerializable(typeof(Dictionary<string, object?>))]
 [JsonSerializable(typeof(List<ContentBlock>))]

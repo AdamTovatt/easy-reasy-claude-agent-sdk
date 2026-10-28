@@ -55,6 +55,61 @@ internal static class MessageParser
             : null;
     }
 
+    /// <summary>
+    /// Parses one content block. A type this SDK does not know becomes an
+    /// <see cref="UnknownContentBlock"/> rather than an exception, because the CLI adds block types
+    /// over time and one new block must not fail the message, and with it the session, it came in.
+    /// A block without a string <c>type</c>, or of a known type with a missing field, still throws.
+    /// </summary>
+    /// <exception cref="MessageParseException">
+    /// If the block has no string <c>type</c>, or a known block type lacks a required field or has
+    /// one of the wrong JSON kind.
+    /// </exception>
+    internal static ContentBlock ParseContentBlock(JsonElement block)
+    {
+        if (!block.TryGetProperty("type", out JsonElement typeElement) ||
+            typeElement.ValueKind != JsonValueKind.String)
+        {
+            throw new MessageParseException("Content block missing string 'type' field", block);
+        }
+
+        try
+        {
+            return ParseContentBlockOfType(typeElement.GetString()!, block);
+        }
+        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException)
+        {
+            throw new MessageParseException($"Missing required field in content block: {ex.Message}", block);
+        }
+    }
+
+    private static ContentBlock ParseContentBlockOfType(string blockType, JsonElement block)
+    {
+        return blockType switch
+        {
+            "text" => new TextBlock(block.GetProperty("text").GetString()!),
+            "thinking" => new ThinkingBlock(
+                block.GetProperty("thinking").GetString()!,
+                block.GetProperty("signature").GetString()!
+            ),
+            "tool_use" => new ToolUseBlock(
+                block.GetProperty("id").GetString()!,
+                block.GetProperty("name").GetString()!,
+                block.GetProperty("input").Clone()
+            ),
+            "tool_result" => new ToolResultBlock(
+                block.GetProperty("tool_use_id").GetString()!,
+                block.TryGetProperty("content", out JsonElement c) ? c.Clone() : null,
+                block.TryGetProperty("is_error", out JsonElement e) ? e.GetBoolean() : null
+            ),
+            "fallback" => new FallbackBlock(
+                block.GetProperty("from").GetProperty("model").GetString()!,
+                block.GetProperty("to").GetProperty("model").GetString()!
+            ),
+            _ => new UnknownContentBlock(blockType, block.Clone())
+        };
+    }
+
     private static UserMessage ParseUserMessage(JsonElement data)
     {
         try
@@ -90,27 +145,7 @@ internal static class MessageParser
 
             foreach (JsonElement block in contentArray.EnumerateArray())
             {
-                string? blockType = block.GetProperty("type").GetString();
-                ContentBlock contentBlock = blockType switch
-                {
-                    "text" => (ContentBlock)new TextBlock(block.GetProperty("text").GetString()!),
-                    "thinking" => new ThinkingBlock(
-                        block.GetProperty("thinking").GetString()!,
-                        block.GetProperty("signature").GetString()!
-                    ),
-                    "tool_use" => new ToolUseBlock(
-                        block.GetProperty("id").GetString()!,
-                        block.GetProperty("name").GetString()!,
-                        block.GetProperty("input").Clone()
-                    ),
-                    "tool_result" => new ToolResultBlock(
-                        block.GetProperty("tool_use_id").GetString()!,
-                        block.TryGetProperty("content", out JsonElement c) ? c.Clone() : null,
-                        block.TryGetProperty("is_error", out JsonElement e) ? e.GetBoolean() : null
-                    ),
-                    _ => throw new MessageParseException($"Unknown content block type: {blockType}", data)
-                };
-                contentBlocks.Add(contentBlock);
+                contentBlocks.Add(ParseContentBlock(block));
             }
 
             // The CLI emits error at the record level, as a sibling of message rather than inside

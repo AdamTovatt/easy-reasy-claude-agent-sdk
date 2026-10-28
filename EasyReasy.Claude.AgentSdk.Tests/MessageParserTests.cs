@@ -88,6 +88,149 @@ public class MessageParserTests
     }
 
     [Fact]
+    public void Parse_AssistantMessage_WithFallbackBlock()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-sonnet-5-5",
+                "content": [
+                    {
+                        "type": "fallback",
+                        "from": { "model": "claude-opus-5-5" },
+                        "to": { "model": "claude-sonnet-5-5" }
+                    },
+                    { "type": "text", "text": "Here is the answer." }
+                ]
+            }
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Equal(2, assistantMessage.Content.Count);
+        FallbackBlock fallback = Assert.IsType<FallbackBlock>(assistantMessage.Content[0]);
+        Assert.Equal("claude-opus-5-5", fallback.FromModel);
+        Assert.Equal("claude-sonnet-5-5", fallback.ToModel);
+        Assert.Equal("Here is the answer.", Assert.IsType<TextBlock>(assistantMessage.Content[1]).Text);
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithUnknownBlockType_KeepsItAndTheOtherBlocks()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    { "type": "text", "text": "Before" },
+                    { "type": "hologram", "frames": [1, 2, 3] },
+                    { "type": "text", "text": "After" }
+                ]
+            }
+        }
+        """);
+
+        Message? message = MessageParser.Parse(json);
+
+        AssistantMessage assistantMessage = Assert.IsType<AssistantMessage>(message);
+        Assert.Equal(3, assistantMessage.Content.Count);
+        Assert.Equal("Before", Assert.IsType<TextBlock>(assistantMessage.Content[0]).Text);
+        UnknownContentBlock unknown = Assert.IsType<UnknownContentBlock>(assistantMessage.Content[1]);
+        Assert.Equal("hologram", unknown.Type);
+        Assert.Equal(3, unknown.Raw.GetProperty("frames").GetArrayLength());
+        Assert.Equal("After", Assert.IsType<TextBlock>(assistantMessage.Content[2]).Text);
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithFallbackBlockMissingModel_Throws()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    { "type": "fallback", "from": {}, "to": { "model": "claude-3-opus" } }
+                ]
+            }
+        }
+        """);
+
+        Assert.Throws<MessageParseException>(() => MessageParser.Parse(json));
+    }
+
+    [Fact]
+    public void Parse_UserMessage_GetContentBlocks_WithUnknownBlockType_KeepsItAndTheOtherBlocks()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [
+                    { "tool_use_id": "tool_123", "type": "tool_result", "content": "ok" },
+                    { "type": "hologram", "frames": [1, 2, 3] }
+                ]
+            }
+        }
+        """);
+
+        UserMessage userMessage = Assert.IsType<UserMessage>(MessageParser.Parse(json));
+        IReadOnlyList<ContentBlock>? blocks = userMessage.GetContentBlocks();
+
+        Assert.NotNull(blocks);
+        Assert.Equal(2, blocks.Count);
+        Assert.Equal("tool_123", Assert.IsType<ToolResultBlock>(blocks[0]).ToolUseId);
+        Assert.Equal("hologram", Assert.IsType<UnknownContentBlock>(blocks[1]).Type);
+    }
+
+    [Fact]
+    public void Parse_UserMessage_GetContentBlocks_WithBlockMissingField_Throws()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [
+                    { "type": "tool_result", "content": "ok" }
+                ]
+            }
+        }
+        """);
+
+        UserMessage userMessage = Assert.IsType<UserMessage>(MessageParser.Parse(json));
+
+        Assert.Throws<MessageParseException>(() => userMessage.GetContentBlocks());
+    }
+
+    [Fact]
+    public void Parse_AssistantMessage_WithNullBlockType_Throws()
+    {
+        JsonElement json = JsonSerializer.Deserialize<JsonElement>("""
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "model": "claude-3-opus",
+                "content": [
+                    { "type": null, "text": "Hi" }
+                ]
+            }
+        }
+        """);
+
+        Assert.Throws<MessageParseException>(() => MessageParser.Parse(json));
+    }
+
+    [Fact]
     public void Parse_AssistantMessage_ExposesUsageFromMessage()
     {
         JsonElement json = JsonSerializer.Deserialize<JsonElement>("""

@@ -26,6 +26,17 @@ public class TypesTests
     }
 
     [Fact]
+    public void FallbackBlock_SerializesInTheCliShape()
+    {
+        ContentBlock block = new FallbackBlock("claude-opus-5-5", "claude-sonnet-5-5");
+        string json = JsonSerializer.Serialize(block, ClaudeJsonContext.Default.ContentBlock);
+
+        Assert.Equal(
+            """{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":{"model":"claude-sonnet-5-5"}}""",
+            json);
+    }
+
+    [Fact]
     public void ClaudeAgentOptions_HasCorrectDefaults()
     {
         ClaudeAgentOptions options = new ClaudeAgentOptions();
