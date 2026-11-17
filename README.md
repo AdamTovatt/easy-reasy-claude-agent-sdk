@@ -187,6 +187,29 @@ ClaudeAgentOptions options = Claude.Options()
     .Build();
 ```
 
+### Control Request Errors
+
+Control methods (`InterruptAsync`, `SetPermissionModeAsync`, `SetModelAsync`, `RewindFilesAsync`, `BackgroundTasksAsync`) tell their failures apart by type. So does connecting (`ConnectAsync`, and `Claude.QueryAsync` when it uses the control protocol), which sends an `initialize` request. Both types derive from `ClaudeSDKException`.
+
+```csharp
+try
+{
+    await client.BackgroundTasksAsync();
+}
+catch (ControlRequestRefusedException ex)
+{
+    // The CLI answered with an error. ex.CliError is its reason (null if it gave none).
+}
+catch (ControlRequestTimeoutException ex)
+{
+    // The CLI never answered within ex.Timeout.
+}
+```
+
+The control methods wait 60 seconds for an answer. `ConnectAsync` waits 60 seconds, or longer if `CLAUDE_CODE_STREAM_CLOSE_TIMEOUT` (milliseconds) is set higher; `Claude.QueryAsync` always waits 60 seconds.
+
+Cancelling your own `CancellationToken` throws `OperationCanceledException`, not a timeout. If the CLI goes away while a request is pending, the request fails at once with the transport's exception or a `CliConnectionException`.
+
 ## Installation
 
 ### NuGet Package (Coming Soon)

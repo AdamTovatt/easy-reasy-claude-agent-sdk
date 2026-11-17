@@ -143,6 +143,13 @@ public static class Claude
     /// }
     /// </code>
     /// </example>
+    /// <exception cref="ControlRequestTimeoutException">
+    /// The CLI did not answer the <c>initialize</c> handshake within the timeout. Only when the control
+    /// protocol is in use (hooks, <c>CanUseTool</c>, in-process MCP servers or a custom transport).
+    /// </exception>
+    /// <exception cref="ControlRequestRefusedException">
+    /// The CLI answered the <c>initialize</c> handshake with an error. Only when the control protocol is in use.
+    /// </exception>
     public static async IAsyncEnumerable<Message> QueryAsync(
         string prompt,
         ClaudeAgentOptions? options = null,
@@ -182,6 +189,8 @@ public static class Claude
     /// <remarks>
     /// This overload matches the Python SDK behavior where the prompt may be a stream of user messages.
     /// </remarks>
+    /// <exception cref="ControlRequestTimeoutException">The CLI did not answer the <c>initialize</c> handshake within the timeout.</exception>
+    /// <exception cref="ControlRequestRefusedException">The CLI answered the <c>initialize</c> handshake with an error; <see cref="ControlRequestRefusedException.CliError"/> holds its reason.</exception>
     public static async IAsyncEnumerable<Message> QueryAsync(
         IAsyncEnumerable<Dictionary<string, object?>> prompt,
         ClaudeAgentOptions? options = null,

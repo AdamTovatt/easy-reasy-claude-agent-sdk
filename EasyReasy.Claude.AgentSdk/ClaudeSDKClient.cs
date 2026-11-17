@@ -88,13 +88,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         Environment.SetEnvironmentVariable("CLAUDE_CODE_ENTRYPOINT", "sdk-dotnet-client");
     }
 
-    /// <summary>
-    /// Connect to Claude with an optional prompt or message stream.
-    /// </summary>
-    /// <param name="prompt">
-    /// Optional initial prompt. Can be a string or null for interactive mode.
-    /// </param>
-    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <inheritdoc />
     public async Task ConnectAsync(
         string? prompt = null,
         CancellationToken cancellationToken = default)
@@ -102,13 +96,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await ConnectInternalAsync(prompt, promptStream: null, cancellationToken);
     }
 
-    /// <summary>
-    /// Connect to Claude with an input message stream.
-    /// </summary>
-    /// <remarks>
-    /// Passing a stream will start streaming it immediately after initialization.
-    /// If the stream completes, stdin will be closed and the session may no longer accept new input.
-    /// </remarks>
+    /// <inheritdoc />
     public async Task ConnectAsync(
         IAsyncEnumerable<Dictionary<string, object?>> promptStream,
         CancellationToken cancellationToken = default)
@@ -305,9 +293,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await _transport.WriteAsync(JsonSerializer.Serialize(message) + "\n", cancellationToken);
     }
 
-    /// <summary>
-    /// Send interrupt signal.
-    /// </summary>
+    /// <inheritdoc />
     public async Task InterruptAsync(CancellationToken cancellationToken = default)
     {
         if (_queryHandler == null)
@@ -316,18 +302,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await _queryHandler.InterruptAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Change permission mode during conversation.
-    /// </summary>
-    /// <param name="mode">
-    /// The permission mode to set:
-    /// <list type="bullet">
-    ///   <item><description>'default': CLI prompts for dangerous tools</description></item>
-    ///   <item><description>'acceptEdits': Auto-accept file edits</description></item>
-    ///   <item><description>'bypassPermissions': Allow all tools (use with caution)</description></item>
-    /// </list>
-    /// </param>
-    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <inheritdoc />
     public async Task SetPermissionModeAsync(string mode, CancellationToken cancellationToken = default)
     {
         if (_queryHandler == null)
@@ -336,11 +311,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await _queryHandler.SetPermissionModeAsync(mode, cancellationToken);
     }
 
-    /// <summary>
-    /// Change the AI model during conversation.
-    /// </summary>
-    /// <param name="model">The model to use, or null to use default.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <inheritdoc />
     public async Task SetModelAsync(string? model = null, CancellationToken cancellationToken = default)
     {
         if (_queryHandler == null)
@@ -349,14 +320,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await _queryHandler.SetModelAsync(model, cancellationToken);
     }
 
-    /// <summary>
-    /// Rewind tracked files to their state at a specific user message.
-    /// </summary>
-    /// <param name="userMessageId">UUID of the user message to rewind to.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <remarks>
-    /// Requires <see cref="ClaudeAgentOptions.EnableFileCheckpointing"/> to be true.
-    /// </remarks>
+    /// <inheritdoc />
     public async Task RewindFilesAsync(string userMessageId, CancellationToken cancellationToken = default)
     {
         if (_queryHandler == null)
@@ -365,15 +329,7 @@ public class ClaudeSDKClient : IClaudeSDKClient
         await _queryHandler.RewindFilesAsync(userMessageId, cancellationToken);
     }
 
-    /// <summary>
-    /// Move in-flight foreground tasks (Bash commands and subagents) to the background.
-    /// </summary>
-    /// <param name="toolUseId">
-    /// When set, backgrounds only the task whose originating tool_use block has this id.
-    /// When null, backgrounds all foreground tasks (the equivalent of pressing Ctrl+B in the terminal).
-    /// </param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if the tasks were backgrounded.</returns>
+    /// <inheritdoc />
     public async Task<bool> BackgroundTasksAsync(string? toolUseId = null, CancellationToken cancellationToken = default)
     {
         if (_queryHandler == null)

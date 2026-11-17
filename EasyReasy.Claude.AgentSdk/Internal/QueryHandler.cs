@@ -1,6 +1,7 @@
 using EasyReasy.Claude.AgentSdk.Mcp;
 using EasyReasy.Claude.AgentSdk.Transport;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -17,10 +18,10 @@ internal class QueryHandler : IAsyncDisposable
     private readonly ClaudeAgentOptions _options;
     private readonly TimeSpan _initializeTimeout;
     private readonly Channel<JsonElement> _messageChannel;
-    private readonly Dictionary<string, TaskCompletionSource<JsonElement>> _pendingRequests = new();
+    private readonly Dictionary<string, PendingRequest> _pendingRequests = new();
     private readonly Dictionary<string, HookCallback> _hookCallbacks = new();
     private readonly Dictionary<string, SdkMcpBridge> _sdkMcpBridges = new();
-    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly object _pendingLock = new();
 
     private Task? _readTask;
     private CancellationTokenSource? _readCts;
@@ -32,9 +33,17 @@ internal class QueryHandler : IAsyncDisposable
     private TaskCompletionSource _firstResultEvent = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JsonElement? _initializationResult;
 
+    // Set under _pendingLock once the read loop has ended, so a control request sent afterwards fails at
+    // once instead of waiting out its timeout for a response nothing will ever route back.
+    private bool _readLoopEnded;
+    private Exception? _readLoopFailure;
+
     // Bounds the wait for the read loop to drain after cancellation so shutdown always
     // proceeds to close the transport (which kills the process and unblocks the reader).
     private static readonly TimeSpan ReadDrainGrace = TimeSpan.FromSeconds(2);
+
+    // How long a control request other than initialize waits for the CLI's answer.
+    private static readonly TimeSpan ControlRequestTimeout = TimeSpan.FromSeconds(60);
 
     public QueryHandler(
         ITransport transport,
@@ -105,13 +114,12 @@ internal class QueryHandler : IAsyncDisposable
             }
         }
 
-        Dictionary<string, object?> request = new Dictionary<string, object?>
+        Dictionary<string, object?> fields = new Dictionary<string, object?>
         {
-            ["subtype"] = "initialize",
             ["hooks"] = hooksConfig.Count > 0 ? hooksConfig : null
         };
 
-        JsonElement response = await SendControlRequestAsync(request, _initializeTimeout, cancellationToken);
+        JsonElement response = await SendControlRequestAsync("initialize", fields, _initializeTimeout, cancellationToken);
         _initialized = true;
         _initializationResult = response;
         return response;
@@ -148,7 +156,7 @@ internal class QueryHandler : IAsyncDisposable
                 // Route control messages
                 if (msgType == "control_response")
                 {
-                    await HandleControlResponseAsync(message);
+                    HandleControlResponse(message);
                     continue;
                 }
 
@@ -181,29 +189,40 @@ internal class QueryHandler : IAsyncDisposable
         catch (Exception ex)
         {
             readFailure = ex;
-
-            // Signal all pending control requests
-            await _lock.WaitAsync(CancellationToken.None);
-            try
-            {
-                foreach ((string? requestId, TaskCompletionSource<JsonElement>? tcs) in _pendingRequests)
-                {
-                    tcs.TrySetException(ex);
-                }
-            }
-            finally
-            {
-                _lock.Release();
-            }
         }
         finally
         {
+            // Nothing routes control responses once this loop is gone, however it ended, so every pending
+            // request fails now rather than waiting out its timeout and being misreported as one.
+            FailPendingRequests(readFailure);
+
             // Null completes the channel cleanly, which is still what a cancelled shutdown wants.
             _messageChannel.Writer.Complete(readFailure);
         }
     }
 
-    private async Task HandleControlResponseAsync(JsonElement message)
+    private void FailPendingRequests(Exception? readFailure)
+    {
+        lock (_pendingLock)
+        {
+            _readLoopEnded = true;
+            _readLoopFailure = readFailure;
+
+            foreach (PendingRequest pending in _pendingRequests.Values)
+                pending.Completion.TrySetException(ConnectionLostException(pending.Subtype));
+        }
+    }
+
+    /// <summary>
+    /// The exception for a control request that can no longer be answered because the read loop has ended:
+    /// the transport's own failure when the loop died with one, else a <see cref="CliConnectionException"/>
+    /// for output that simply ended (EOF or shutdown). Call under <see cref="_pendingLock"/>.
+    /// </summary>
+    private Exception ConnectionLostException(string subtype) =>
+        _readLoopFailure ?? new CliConnectionException(
+            $"The CLI's output ended before it answered control request '{subtype}'");
+
+    private void HandleControlResponse(JsonElement message)
     {
         if (!message.TryGetProperty("response", out JsonElement response))
             return;
@@ -215,29 +234,39 @@ internal class QueryHandler : IAsyncDisposable
         if (requestId == null)
             return;
 
-        await _lock.WaitAsync();
-        try
+        lock (_pendingLock)
         {
-            if (_pendingRequests.TryGetValue(requestId, out TaskCompletionSource<JsonElement>? tcs))
+            if (!_pendingRequests.TryGetValue(requestId, out PendingRequest? pending))
+                return;
+
+            if (response.TryGetProperty("subtype", out JsonElement subtypeElement) &&
+                subtypeElement.GetString() == "error")
             {
-                if (response.TryGetProperty("subtype", out JsonElement subtypeElement) &&
-                    subtypeElement.GetString() == "error")
-                {
-                    string errorMsg = response.TryGetProperty("error", out JsonElement e)
-                        ? e.GetString() ?? "Unknown error"
-                        : "Unknown error";
-                    tcs.TrySetException(new ClaudeSDKException(errorMsg));
-                }
-                else
-                {
-                    tcs.TrySetResult(response);
-                }
+                pending.Completion.TrySetException(
+                    new ControlRequestRefusedException(pending.Subtype, ReadCliError(response)));
+            }
+            else
+            {
+                pending.Completion.TrySetResult(response);
             }
         }
-        finally
+    }
+
+    /// <summary>
+    /// The <c>error</c> field of an error control response as the CLI sent it: the string itself, null when
+    /// the field is absent or JSON null, and the raw JSON for any other shape so nothing the CLI said is lost.
+    /// </summary>
+    private static string? ReadCliError(JsonElement response)
+    {
+        if (!response.TryGetProperty("error", out JsonElement error))
+            return null;
+
+        return error.ValueKind switch
         {
-            _lock.Release();
-        }
+            JsonValueKind.String => error.GetString(),
+            JsonValueKind.Null => null,
+            _ => error.GetRawText()
+        };
     }
 
     private async Task HandleControlRequestAsync(JsonElement message, CancellationToken cancellationToken)
@@ -448,22 +477,43 @@ internal class QueryHandler : IAsyncDisposable
         _sdkMcpBridges[serverName] = bridge;
     }
 
+    /// <summary>
+    /// Send a control request built from <paramref name="subtype"/> and <paramref name="fields"/>, and wait
+    /// for the CLI's answer.
+    /// </summary>
+    /// <exception cref="ControlRequestTimeoutException">The CLI did not answer within <paramref name="timeout"/>.</exception>
+    /// <exception cref="ControlRequestRefusedException">The CLI answered with an error response.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    /// <remarks>
+    /// When the read loop ends while the request is pending (or has already ended), the request fails at
+    /// once with the transport's own exception, or with a <see cref="CliConnectionException"/> when the
+    /// CLI's output simply ended.
+    /// </remarks>
     private async Task<JsonElement> SendControlRequestAsync(
-        object request,
+        string subtype,
+        IReadOnlyDictionary<string, object?>? fields,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        string requestId = $"req_{Interlocked.Increment(ref _requestCounter)}_{Guid.NewGuid():N}";
-        TaskCompletionSource<JsonElement> tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        await _lock.WaitAsync(cancellationToken);
-        try
+        string requestId = $"req_{Interlocked.Increment(ref _requestCounter)}_{Guid.NewGuid():N}";
+        PendingRequest pending = new PendingRequest(subtype);
+
+        lock (_pendingLock)
         {
-            _pendingRequests[requestId] = tcs;
+            // ExceptionDispatchInfo keeps the stored transport failure's original stack trace.
+            if (_readLoopEnded)
+                ExceptionDispatchInfo.Throw(ConnectionLostException(subtype));
+
+            _pendingRequests[requestId] = pending;
         }
-        finally
+
+        Dictionary<string, object?> request = new Dictionary<string, object?> { ["subtype"] = subtype };
+        if (fields != null)
         {
-            _lock.Release();
+            foreach ((string key, object? value) in fields)
+                request[key] = value;
         }
 
         var controlRequest = new
@@ -473,29 +523,31 @@ internal class QueryHandler : IAsyncDisposable
             request
         };
 
-        await _transport.WriteAsync(JsonSerializer.Serialize(controlRequest) + "\n", cancellationToken);
-
-        using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(timeout);
-
         try
         {
-            return await tcs.Task.WaitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            throw new ClaudeSDKException($"Control request timeout: {request}");
+            await _transport.WriteAsync(JsonSerializer.Serialize(controlRequest) + "\n", cancellationToken);
+
+            Task<JsonElement> completion = pending.Completion.Task;
+            try
+            {
+                return await completion.WaitAsync(timeout, cancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                // Either WaitAsync's own timeout fired, or the transport failed the request with a
+                // TimeoutException of its own. A completion that is set by now (that failure, or an answer
+                // that landed just as the timeout fired) speaks for itself; only an unset one timed out.
+                if (completion.IsCompleted)
+                    return await completion;
+
+                throw new ControlRequestTimeoutException(subtype, timeout);
+            }
         }
         finally
         {
-            await _lock.WaitAsync(CancellationToken.None);
-            try
+            lock (_pendingLock)
             {
                 _pendingRequests.Remove(requestId);
-            }
-            finally
-            {
-                _lock.Release();
             }
         }
     }
@@ -505,11 +557,7 @@ internal class QueryHandler : IAsyncDisposable
     /// </summary>
     public async Task InterruptAsync(CancellationToken cancellationToken = default)
     {
-        await SendControlRequestAsync(
-            new { subtype = "interrupt" },
-            TimeSpan.FromSeconds(60),
-            cancellationToken
-        );
+        await SendControlRequestAsync("interrupt", null, ControlRequestTimeout, cancellationToken);
     }
 
     /// <summary>
@@ -518,10 +566,10 @@ internal class QueryHandler : IAsyncDisposable
     public async Task SetPermissionModeAsync(string mode, CancellationToken cancellationToken = default)
     {
         await SendControlRequestAsync(
-            new { subtype = "set_permission_mode", mode },
-            TimeSpan.FromSeconds(60),
-            cancellationToken
-        );
+            "set_permission_mode",
+            new Dictionary<string, object?> { ["mode"] = mode },
+            ControlRequestTimeout,
+            cancellationToken);
     }
 
     /// <summary>
@@ -530,10 +578,10 @@ internal class QueryHandler : IAsyncDisposable
     public async Task SetModelAsync(string? model, CancellationToken cancellationToken = default)
     {
         await SendControlRequestAsync(
-            new { subtype = "set_model", model },
-            TimeSpan.FromSeconds(60),
-            cancellationToken
-        );
+            "set_model",
+            new Dictionary<string, object?> { ["model"] = model },
+            ControlRequestTimeout,
+            cancellationToken);
     }
 
     /// <summary>
@@ -542,10 +590,10 @@ internal class QueryHandler : IAsyncDisposable
     public async Task RewindFilesAsync(string userMessageId, CancellationToken cancellationToken = default)
     {
         await SendControlRequestAsync(
-            new { subtype = "rewind_files", user_message_id = userMessageId },
-            TimeSpan.FromSeconds(60),
-            cancellationToken
-        );
+            "rewind_files",
+            new Dictionary<string, object?> { ["user_message_id"] = userMessageId },
+            ControlRequestTimeout,
+            cancellationToken);
     }
 
     /// <summary>
@@ -553,15 +601,15 @@ internal class QueryHandler : IAsyncDisposable
     /// </summary>
     public async Task<bool> BackgroundTasksAsync(string? toolUseId, CancellationToken cancellationToken = default)
     {
-        object request = toolUseId == null
-            ? new { subtype = "background_tasks" }
-            : new { subtype = "background_tasks", tool_use_id = toolUseId };
+        Dictionary<string, object?>? fields = toolUseId == null
+            ? null
+            : new Dictionary<string, object?> { ["tool_use_id"] = toolUseId };
 
         JsonElement result = await SendControlRequestAsync(
-            request,
-            TimeSpan.FromSeconds(60),
-            cancellationToken
-        );
+            "background_tasks",
+            fields,
+            ControlRequestTimeout,
+            cancellationToken);
 
         return ParseBackgroundedResult(result);
     }
@@ -574,8 +622,10 @@ internal class QueryHandler : IAsyncDisposable
     /// keep this defensive: <see cref="JsonElement.TryGetProperty(string, out JsonElement)"/> throws when
     /// the inner <c>response</c> is present but not an object (e.g. JSON <c>null</c>), and
     /// <see cref="JsonElement.GetBoolean"/> throws when the field is not a boolean. When the flag is
-    /// absent or unreadable we return <c>true</c>: the control request already threw on an error subtype
-    /// before reaching here, so a successful response with no explicit flag means the tasks were backgrounded.
+    /// absent or unreadable we return <c>true</c>: an error response never reaches here, because the control
+    /// request already threw <see cref="ControlRequestRefusedException"/> for it, so a successful response
+    /// with no explicit flag means the tasks were backgrounded. An explicit <c>false</c> is still a successful
+    /// answer (nothing was backgrounded), not a refusal.
     /// </remarks>
     internal static bool ParseBackgroundedResult(JsonElement result)
     {
@@ -688,7 +738,21 @@ internal class QueryHandler : IAsyncDisposable
             await bridge.DisposeAsync();
         }
         _sdkMcpBridges.Clear();
+    }
 
-        _lock.Dispose();
+    /// <summary>
+    /// A control request awaiting the CLI's answer, with the subtype it was sent as so a failure can name it.
+    /// </summary>
+    private sealed class PendingRequest
+    {
+        public PendingRequest(string subtype)
+        {
+            Subtype = subtype;
+        }
+
+        public string Subtype { get; }
+
+        public TaskCompletionSource<JsonElement> Completion { get; } =
+            new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

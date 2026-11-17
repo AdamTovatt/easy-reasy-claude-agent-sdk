@@ -143,3 +143,77 @@ public class MessageParseException : ClaudeSDKException
         RawData = rawData;
     }
 }
+
+/// <summary>
+/// Raised when a control request to the CLI (such as <c>interrupt</c>, <c>set_model</c> or
+/// <c>background_tasks</c>) does not succeed. The subclass says how it failed:
+/// <see cref="ControlRequestTimeoutException"/> when the CLI never answered, and
+/// <see cref="ControlRequestRefusedException"/> when it answered with an error.
+/// </summary>
+/// <remarks>
+/// Losing the CLI while a request is pending is neither: that surfaces as the transport's own
+/// exception, or as a <see cref="CliConnectionException"/> when the CLI's output simply ended.
+/// </remarks>
+public abstract class ControlRequestException : ClaudeSDKException
+{
+    /// <summary>
+    /// Gets the subtype of the control request that failed, e.g. <c>background_tasks</c>.
+    /// </summary>
+    public string Subtype { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the ControlRequestException class with a specified error message and request subtype.
+    /// </summary>
+    /// <param name="message">The message that describes the error.</param>
+    /// <param name="subtype">The subtype of the control request that failed.</param>
+    private protected ControlRequestException(string message, string subtype) : base(message)
+    {
+        Subtype = subtype;
+    }
+}
+
+/// <summary>
+/// Raised when the CLI did not answer a control request within its timeout.
+/// </summary>
+public sealed class ControlRequestTimeoutException : ControlRequestException
+{
+    /// <summary>
+    /// Gets how long the request waited for an answer before giving up.
+    /// </summary>
+    public TimeSpan Timeout { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the ControlRequestTimeoutException class with the request subtype and timeout.
+    /// </summary>
+    /// <param name="subtype">The subtype of the control request that timed out.</param>
+    /// <param name="timeout">How long the request waited for an answer.</param>
+    public ControlRequestTimeoutException(string subtype, TimeSpan timeout)
+        : base($"Control request '{subtype}' got no answer from the CLI within {timeout.TotalSeconds:0.###}s", subtype)
+    {
+        Timeout = timeout;
+    }
+}
+
+/// <summary>
+/// Raised when the CLI answered a control request with an error response.
+/// </summary>
+public sealed class ControlRequestRefusedException : ControlRequestException
+{
+    /// <summary>
+    /// Gets the CLI's <c>error</c> text exactly as sent, or null when the error response had none.
+    /// </summary>
+    public string? CliError { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the ControlRequestRefusedException class with the request subtype and the CLI's error text.
+    /// </summary>
+    /// <param name="subtype">The subtype of the control request the CLI refused.</param>
+    /// <param name="cliError">The CLI's error text exactly as sent, or null when the response had none.</param>
+    public ControlRequestRefusedException(string subtype, string? cliError)
+        : base(cliError != null
+            ? $"CLI refused control request '{subtype}': {cliError}"
+            : $"CLI refused control request '{subtype}' without giving a reason", subtype)
+    {
+        CliError = cliError;
+    }
+}
