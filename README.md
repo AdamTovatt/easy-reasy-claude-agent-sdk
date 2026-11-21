@@ -165,7 +165,7 @@ ClaudeAgentOptions options = Claude.Options()
     .Build();
 ```
 
-The input schema is inferred from the delegate. A parameter is required unless it is nullable or has a default value. In an object type, whether it is a single args-object parameter or nested anywhere inside one, a property is required unless it is nullable, or when it carries `[Required]`. Nested types are written out inline; a type that refers back to itself, directly or through other types or collections, is described once under `$defs` and referenced with `$ref` wherever it appears.
+The input schema is inferred from the delegate. A parameter is required unless it is nullable or has a default value. In an object type, whether it is a single args-object parameter or nested anywhere inside one, a property is required unless it is nullable, or when it carries `[Required]`. Nested types are written out inline, and a string-keyed dictionary is an object whose values follow its value type. A type that refers back to itself, directly or through other types, collections or dictionaries, is described once under `$defs` and referenced with `$ref` wherever it appears.
 
 ### Custom Agents
 

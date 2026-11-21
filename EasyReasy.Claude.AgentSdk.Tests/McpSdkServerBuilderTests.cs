@@ -211,7 +211,7 @@ public sealed class McpSdkServerBuilderTests
     private sealed record City(string Name, Dictionary<string, City> Roads);
 
     [Fact]
-    public async Task Tool_WithCycleThroughADictionary_ReturnsASchemaThatReferencesTheDefinition()
+    public async Task Tool_WithCycleThroughADictionary_ReferencesTheDefinitionFromTheValues()
     {
         McpServerRegistry servers = McpServers.Sdk(
             "maps",
@@ -220,9 +220,12 @@ public sealed class McpSdkServerBuilderTests
 
         JsonElement schema = await GetOnlyToolSchemaAsync(servers, "maps");
 
-        // Only the reference is asserted: this test covers the cycle, not how a dictionary is described.
-        Assert.Equal("#/$defs/City", schema.GetProperty("properties").GetProperty("to").GetProperty("$ref").GetString());
-        Assert.True(schema.GetProperty("$defs").TryGetProperty("City", out _));
+        AssertJson(
+            """
+            {"type":"object","properties":{"from":{"type":"string"},"to":{"$ref":"#/$defs/City"}},"required":["from","to"],
+             "$defs":{"City":{"type":"object","properties":{"name":{"type":"string"},"roads":{"type":"object","additionalProperties":{"$ref":"#/$defs/City"}}},"required":["name","roads"]}}}
+            """,
+            schema);
     }
 
     private static class Elsewhere

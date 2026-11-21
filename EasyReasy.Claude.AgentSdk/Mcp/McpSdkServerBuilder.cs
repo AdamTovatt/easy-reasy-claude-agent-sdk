@@ -647,13 +647,13 @@ public sealed class McpSdkServerBuilder
             if (IsNumber(type))
                 return new TypeShape.Fixed(new Dictionary<string, object?> { ["type"] = "number" });
 
-            // Every IDictionary is also an IEnumerable of key/value pairs, and this check runs before the dictionary
-            // one, so dictionaries take this branch and are described as arrays of {key, value} objects.
-            if (TryGetEnumerableElementType(type, out Type? elementType))
-                return new TypeShape.ArrayOf(elementType);
-
+            // Every IDictionary is also an IEnumerable of key/value pairs, so the dictionary check runs first for
+            // a string-keyed dictionary to be described as the JSON object it is read from.
             if (TryGetStringDictionaryValueType(type, out Type? valueType))
                 return new TypeShape.MapOf(valueType);
+
+            if (TryGetEnumerableElementType(type, out Type? elementType))
+                return new TypeShape.ArrayOf(elementType);
 
             return new TypeShape.ObjectOf();
         }
