@@ -233,6 +233,53 @@ public class McpIntegrationTests
         Assert.True(errorReturned, "Tool should have returned an error for division by zero");
     }
 
+    private sealed record TreeNode(string Name, TreeNode? Child);
+
+    [Fact]
+    public async Task McpTools_WithSchemaUsingRefs_AreAcceptedAndCalledByClaude()
+    {
+        List<TreeNode> walked = new List<TreeNode>();
+
+        McpServerRegistry servers = McpServers.Sdk(
+            "trees",
+            s => s.Tool(
+                "walk",
+                (TreeNode root) =>
+                {
+                    walked.Add(root);
+                    return root.Child?.Name ?? "(no child)";
+                },
+                "Walk a tree of named nodes and return the name of the root's child")
+        );
+
+        JsonElement schema = (await ((McpSdkServerConfig)servers["trees"]).Handlers!.ListTools!(CancellationToken.None))[0].InputSchema!.Value;
+        Assert.True(schema.TryGetProperty("$defs", out _), "The tool's schema should use $defs for this test to mean anything.");
+
+        ClaudeAgentOptions options = new ClaudeAgentOptions
+        {
+            McpServers = servers,
+            SystemPrompt = "You have a trees MCP server. Use its 'walk' tool whenever asked about a tree.",
+            MaxTurns = 3,
+            CanUseTool = async (_, _, _, _) => { await Task.CompletedTask; return new PermissionResultAllow(); }
+        };
+
+        await using ClaudeSDKClient client = new ClaudeSDKClient(options);
+        await client.ConnectAsync();
+
+        await client.QueryAsync("Call the walk tool once with a root node named 'oak' whose child is a node named 'acorn'.");
+
+        ResultMessage? result = null;
+        await foreach (Message message in client.ReceiveResponseAsync())
+        {
+            if (message is ResultMessage rm)
+                result = rm;
+        }
+
+        Assert.NotNull(result);
+        Assert.False(result.IsError);
+        Assert.Contains(walked, root => root.Name == "oak" && root.Child?.Name == "acorn");
+    }
+
     #endregion
 
     #region Prompt Integration Tests
