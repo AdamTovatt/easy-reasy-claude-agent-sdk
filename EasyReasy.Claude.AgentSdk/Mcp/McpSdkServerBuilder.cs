@@ -103,8 +103,9 @@ public sealed class McpSdkServerBuilder
 
         public static ToolRegistration Create(string name, string? description, Delegate handler)
         {
-            BindingPlan plan = BindingPlan.Create(handler.Method);
-            JsonElement schema = plan.BuildInputSchema();
+            McpSchemaGenerator schemaGenerator = new McpSchemaGenerator();
+            BindingPlan plan = BindingPlan.Create(handler.Method, schemaGenerator);
+            JsonElement schema = plan.BuildInputSchema(schemaGenerator);
             return new ToolRegistration(name, description, schema, handler, plan);
         }
 
@@ -204,7 +205,7 @@ public sealed class McpSdkServerBuilder
                 _bindWholeObject = bindWholeObject;
             }
 
-            public static BindingPlan Create(MethodInfo method)
+            public static BindingPlan Create(MethodInfo method, McpSchemaGenerator schemaGenerator)
             {
                 ParameterInfo[] allParams = method.GetParameters();
                 bool hasCt = allParams.Length > 0 && allParams[^1].ParameterType == typeof(CancellationToken);
@@ -215,17 +216,17 @@ public sealed class McpSdkServerBuilder
                     bindWhole = true;
 
                 List<BindingParameter> parameters = logicalParams
-                    .Select(p => new BindingParameter(p))
+                    .Select(p => new BindingParameter(p, schemaGenerator))
                     .ToList();
 
                 return new BindingPlan(parameters, hasCt, bindWhole);
             }
 
-            public JsonElement BuildInputSchema()
+            public JsonElement BuildInputSchema(McpSchemaGenerator schemaGenerator)
             {
                 if (_bindWholeObject && _parameters.Count == 1)
                 {
-                    object schema = McpSchemaGenerator.GenerateForType(_parameters[0].ParameterType);
+                    object schema = schemaGenerator.GenerateForType(_parameters[0].ParameterType);
                     return JsonSerializer.SerializeToElement(schema, ToolJsonOptions);
                 }
 
@@ -234,7 +235,7 @@ public sealed class McpSdkServerBuilder
 
                 foreach (BindingParameter p in _parameters)
                 {
-                    properties[p.JsonName] = McpSchemaGenerator.GenerateForType(p.ParameterType);
+                    properties[p.JsonName] = schemaGenerator.GenerateForType(p.ParameterType);
                     if (p.IsRequired)
                         required.Add(p.JsonName);
                 }
@@ -408,8 +409,6 @@ public sealed class McpSdkServerBuilder
 
         private sealed class BindingParameter
         {
-            private static readonly NullabilityInfoContext Nullability = new();
-
             public string JsonName { get; }
             public Type ParameterType { get; }
             public bool HasDefaultValue { get; }
@@ -417,7 +416,7 @@ public sealed class McpSdkServerBuilder
             public bool AllowsNull { get; }
             public bool IsRequired { get; }
 
-            public BindingParameter(ParameterInfo p)
+            public BindingParameter(ParameterInfo p, McpSchemaGenerator schemaGenerator)
             {
                 ParameterType = p.ParameterType;
                 string paramName = p.Name ?? throw new ArgumentException("Delegate parameters must have names.");
@@ -426,20 +425,31 @@ public sealed class McpSdkServerBuilder
                 HasDefaultValue = p.HasDefaultValue;
                 DefaultValue = p.HasDefaultValue ? p.DefaultValue : null;
 
-                NullabilityInfo nullability = Nullability.Create(p);
-                AllowsNull = nullability.WriteState == NullabilityState.Nullable ||
-                             Nullable.GetUnderlyingType(ParameterType) != null;
-
+                AllowsNull = schemaGenerator.AllowsNull(p);
                 IsRequired = !HasDefaultValue && !AllowsNull;
             }
         }
     }
 
-    private static class McpSchemaGenerator
+    /// <summary>
+    /// Generates a tool's input schema and decides which of its values allow null. Create one per tool
+    /// registration: the nullability reader it holds is not thread-safe, and sharing one between
+    /// registrations that run concurrently corrupts it for every later registration in the process.
+    /// </summary>
+    private sealed class McpSchemaGenerator
     {
-        private static readonly NullabilityInfoContext Nullability = new();
+        private readonly NullabilityInfoContext _nullability = new NullabilityInfoContext();
 
-        public static object GenerateForType(Type type)
+        public bool AllowsNull(ParameterInfo parameter)
+            => AllowsNull(_nullability.Create(parameter), parameter.ParameterType);
+
+        public bool AllowsNull(PropertyInfo property)
+            => AllowsNull(_nullability.Create(property), property.PropertyType);
+
+        private static bool AllowsNull(NullabilityInfo nullability, Type type)
+            => nullability.WriteState == NullabilityState.Nullable || Nullable.GetUnderlyingType(type) != null;
+
+        public object GenerateForType(Type type)
         {
             type = Nullable.GetUnderlyingType(type) ?? type;
 
@@ -491,7 +501,7 @@ public sealed class McpSdkServerBuilder
             return GenerateObjectSchema(type);
         }
 
-        private static object GenerateObjectSchema(Type type)
+        private object GenerateObjectSchema(Type type)
         {
             PropertyInfo[] props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.GetMethod != null && p.GetMethod.IsPublic)
@@ -508,12 +518,8 @@ public sealed class McpSdkServerBuilder
 
                 properties[jsonName] = GenerateForType(prop.PropertyType);
 
-                NullabilityInfo nullability = Nullability.Create(prop);
-                bool allowsNull = nullability.WriteState == NullabilityState.Nullable ||
-                                 Nullable.GetUnderlyingType(prop.PropertyType) != null;
-
                 bool requiredByAttr = prop.GetCustomAttribute<RequiredAttribute>() != null;
-                bool requiredByNullability = !allowsNull;
+                bool requiredByNullability = !AllowsNull(prop);
                 if (requiredByAttr || requiredByNullability)
                     required.Add(jsonName);
             }

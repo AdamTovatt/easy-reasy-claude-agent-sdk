@@ -165,6 +165,8 @@ ClaudeAgentOptions options = Claude.Options()
     .Build();
 ```
 
+The input schema is inferred from the delegate. A parameter is required unless it is nullable or has a default value; with a single args-object parameter, a property is required unless it is nullable, or when it carries `[Required]`.
+
 ### Custom Agents
 
 ```csharp

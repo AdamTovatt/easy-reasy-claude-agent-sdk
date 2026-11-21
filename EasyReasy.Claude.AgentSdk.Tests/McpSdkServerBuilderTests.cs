@@ -66,4 +66,49 @@ public sealed class McpSdkServerBuilderTests
 
         Assert.Equal("30", result.Content[0].Text);
     }
+
+    [Fact]
+    public async Task Tool_WithParameters_RequiresOnlyThoseThatAreNotNullableAndHaveNoDefault()
+    {
+        McpServerRegistry servers = McpServers.Sdk(
+            "greeter",
+            s => s.Tool(
+                "greet",
+                (string name, string? nickname, int count, int? limit, string greeting = "Hello") => greeting)
+        );
+
+        JsonElement schema = await GetOnlyToolSchemaAsync(servers, "greeter");
+
+        Assert.Equal(["name", "count"], RequiredNames(schema));
+    }
+
+    private sealed record RequiredArgs(
+        string Name,
+        string? Nickname,
+        [property: System.ComponentModel.DataAnnotations.Required] string? Code,
+        int Count,
+        int? Limit);
+
+    [Fact]
+    public async Task Tool_WithArgsObject_RequiresPropertiesThatAreNotNullableOrMarkedRequired()
+    {
+        McpServerRegistry servers = McpServers.Sdk(
+            "greeter",
+            s => s.Tool("greet", (RequiredArgs args) => args.Name)
+        );
+
+        JsonElement schema = await GetOnlyToolSchemaAsync(servers, "greeter");
+
+        Assert.Equal(["name", "code", "count"], RequiredNames(schema));
+    }
+
+    private static async Task<JsonElement> GetOnlyToolSchemaAsync(McpServerRegistry servers, string serverName)
+    {
+        McpSdkServerConfig config = Assert.IsType<McpSdkServerConfig>(servers[serverName]);
+        IReadOnlyList<McpToolDefinition> tools = await config.Handlers!.ListTools!(CancellationToken.None);
+        return Assert.Single(tools).InputSchema!.Value;
+    }
+
+    private static IEnumerable<string?> RequiredNames(JsonElement schema)
+        => schema.GetProperty("required").EnumerateArray().Select(e => e.GetString());
 }
